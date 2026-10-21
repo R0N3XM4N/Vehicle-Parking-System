@@ -1,0 +1,32 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Reserve Parking</title>
+</head>
+<body>
+    <h1>Reserve {{ slot.slot_number }}</h1>
+
+    <p>Hourly rate: ₹{{ "%.2f"|format(slot.hourly_rate) }}</p>
+
+    {% for category, message in get_flashed_messages(with_categories=true) %}
+        <p>{{ message }}</p>
+    {% endfor %}
+
+    <form method="POST">
+        <label for="vehicle_number">Vehicle registration number</label>
+        <input
+            id="vehicle_number"
+            type="text"
+            name="vehicle_number"
+            maxlength="20"
+            required
+        >
+        <button type="submit">Confirm Reservation</button>
+    </form>
+
+    <p><a href="{{ url_for('main.parking') }}">Back to parking slots</a></p>
+</body>
+</html>

@@ -1,0 +1,38 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Available Parking Slots</title>
+</head>
+<body>
+    <h1>Available Parking Slots</h1>
+
+    {% for category, message in get_flashed_messages(with_categories=true) %}
+        <p>{{ message }}</p>
+    {% endfor %}
+
+    {% for slot in slots %}
+        <div>
+            <h3>{{ slot.slot_number }}</h3>
+            <p>Hourly rate: ₹{{ "%.2f"|format(slot.hourly_rate) }}</p>
+
+            {% if slot.is_occupied %}
+                <p>Occupied</p>
+            {% else %}
+                <p>Available</p>
+                <a href="{{ url_for('main.reserve', slot_id=slot.id) }}">
+                    Reserve this slot
+                </a>
+            {% endif %}
+        </div>
+        <hr>
+    {% else %}
+        <p>No parking slots have been configured.</p>
+    {% endfor %}
+
+    <p><a href="{{ url_for('main.dashboard') }}">Back to dashboard</a></p>
+    <p><a href="{{ url_for('main.my_reservations') }}">My reservations</a></p>
+</body>
+</html>
