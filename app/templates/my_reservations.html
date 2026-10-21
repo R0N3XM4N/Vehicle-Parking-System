@@ -1,0 +1,48 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>My Reservations</title>
+</head>
+<body>
+    <h1>My Reservations</h1>
+
+    {% for category, message in get_flashed_messages(with_categories=true) %}
+        <p>{{ message }}</p>
+    {% endfor %}
+
+    {% for reservation in reservations %}
+        <section>
+            <h3>Reservation #{{ reservation.id }}</h3>
+            <p>Parking slot: {{ reservation.parking_slot.slot_number }}</p>
+            <p>Vehicle: {{ reservation.vehicle_number }}</p>
+            <p>Status: {{ reservation.status }}</p>
+            <p>Hourly rate: ₹{{ "%.2f"|format(reservation.parking_slot.hourly_rate) }}</p>
+            <p>Reserved at: {{ reservation.start_time }}</p>
+
+            {% if reservation.status == "reserved" %}
+                <form method="POST"
+                      action="{{ url_for('main.vehicle_entry', reservation_id=reservation.id) }}">
+                    <button type="submit">Record Vehicle Entry</button>
+                </form>
+            {% elif reservation.status == "parked" %}
+                <form method="POST"
+                      action="{{ url_for('main.vehicle_exit', reservation_id=reservation.id) }}">
+                    <button type="submit">Record Vehicle Exit and Calculate Fee</button>
+                </form>
+            {% elif reservation.status == "completed" %}
+                <p>Exit time: {{ reservation.end_time }}</p>
+                <p>Total parking fee: ₹{{ "%.2f"|format(reservation.fee) }}</p>
+                <p>Payment status: Simulated payment recorded</p>
+            {% endif %}
+        </section>
+        <hr>
+    {% else %}
+        <p>You have no reservations yet.</p>
+    {% endfor %}
+
+    <a href="{{ url_for('main.parking') }}">Browse parking slots</a>
+</body>
+</html>
