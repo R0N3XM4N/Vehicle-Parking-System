@@ -5,12 +5,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard | Vehicle Parking System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>Welcome, {{ name }}!</h1>
-    <p>You are logged in to the Vehicle Parking System.</p>
-    <a href="{{ url_for('main.parking') }}">View Parking Slots</a>
-    <a href="{{ url_for('main.my_reservations') }}">View My Reservations</a>
-    <a href="{{ url_for('main.logout') }}">Log out</a>
+    <header class="site-header">
+        <span class="brand">Vehicle Parking System</span>
+    </header>
+
+    <main class="page-content">
+        <section class="dashboard-card">
+            <p class="eyebrow">Dashboard</p>
+            <h1>Welcome, {{ name }}!</h1>
+            <p class="dashboard-intro">
+                Find an available parking space or manage your existing reservations.
+            </p>
+
+            <nav class="dashboard-actions" aria-label="Dashboard actions">
+                <a class="button" href="{{ url_for('main.parking') }}">View Parking Slots</a>
+                <a class="button button-secondary" href="{{ url_for('main.my_reservations') }}">My Reservations</a>
+                <a class="button button-link" href="{{ url_for('main.logout') }}">Log out</a>
+            </nav>
+        </section>
+    </main>
 </body>
 </html>
