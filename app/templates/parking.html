@@ -1,38 +1,35 @@
+{% extends "base.html" %}
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Available Parking Slots</title>
-</head>
-<body>
-    <h1>Available Parking Slots</h1>
+{% block title %}Parking Slots | Vehicle Parking System{% endblock %}
 
-    {% for category, message in get_flashed_messages(with_categories=true) %}
-        <p>{{ message }}</p>
-    {% endfor %}
-
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow">Parking availability</p>
+      <h1>Choose a parking slot</h1>
+      <p>Available slots can be reserved immediately at the displayed hourly rate.</p>
+    </div>
+    <a class="button button-secondary" href="{{ url_for('main.my_reservations') }}">My Reservations</a>
+  </div>
+  <section class="slot-grid" aria-label="Parking slots">
     {% for slot in slots %}
-        <div>
-            <h3>{{ slot.slot_number }}</h3>
-            <p>Hourly rate: ₹{{ "%.2f"|format(slot.hourly_rate) }}</p>
-
-            {% if slot.is_occupied %}
-                <p>Occupied</p>
-            {% else %}
-                <p>Available</p>
-                <a href="{{ url_for('main.reserve', slot_id=slot.id) }}">
-                    Reserve this slot
-                </a>
-            {% endif %}
+      <article class="slot-card{% if slot.is_occupied %} slot-card-occupied{% endif %}">
+        <div class="slot-card-top">
+          <span class="slot-icon" aria-hidden="true">P</span>
+          <span class="status-badge status-{{ 'occupied' if slot.is_occupied else 'available' }}">
+            {{ 'Occupied' if slot.is_occupied else 'Available' }}
+          </span>
         </div>
-        <hr>
+        <h2>{{ slot.slot_number }}</h2>
+        <p class="slot-rate"><strong>₹{{ "%.2f"|format(slot.hourly_rate) }}</strong> / hour</p>
+        {% if slot.is_occupied %}
+          <span class="button button-disabled" aria-disabled="true">Not available</span>
+        {% else %}
+          <a class="button" href="{{ url_for('main.reserve', slot_id=slot.id) }}">Reserve slot</a>
+        {% endif %}
+      </article>
     {% else %}
-        <p>No parking slots have been configured.</p>
+      <div class="empty-state">No parking slots have been configured.</div>
     {% endfor %}
-
-    <p><a href="{{ url_for('main.dashboard') }}">Back to dashboard</a></p>
-    <p><a href="{{ url_for('main.my_reservations') }}">My reservations</a></p>
-</body>
-</html>
+  </section>
+{% endblock %}

@@ -3,14 +3,30 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}{{ title }}{% endblock %}</title>
+    <title>{% block title %}Vehicle Parking System{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="{{ url_for('main.index') }}">Vehicle Parking System</a>
+      <div class="header-inner">
+        <a class="brand" href="{{ url_for('main.home') }}">Vehicle Parking System</a>
+        <nav class="site-nav" aria-label="Main navigation">
+          {% if session.get('user_id') %}
+            <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('main.parking') }}">Parking</a>
+            <a href="{{ url_for('main.my_reservations') }}">Reservations</a>
+            <a href="{{ url_for('main.logout') }}">Log out</a>
+          {% else %}
+            <a href="{{ url_for('main.login') }}">Log in</a>
+            <a class="nav-cta" href="{{ url_for('main.register') }}">Register</a>
+          {% endif %}
+        </nav>
+      </div>
     </header>
     <main class="page-content">
+      {% for category, message in get_flashed_messages(with_categories=true) %}
+        <div class="flash flash-{{ category }}" role="status">{{ message }}</div>
+      {% endfor %}
       {% block content %}{% endblock %}
     </main>
   </body>
