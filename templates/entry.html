@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Record Vehicle Entry</h2>
+<div class="card">
+    <div class="card-body">
+        <form method="POST" action="/entry">
+            <div class="mb-3">
+                <label for="vehicle_number" class="form-label">Vehicle Number</label>
+                <input type="text" class="form-control" id="vehicle_number" name="vehicle_number" required>
+            </div>
+            <div class="mb-3">
+                <label for="slot_id" class="form-label">Assign Available Slot</label>
+                <select class="form-select" id="slot_id" name="slot_id" required>
+                    <option value="" disabled selected>Select a free slot...</option>
+                    {% for slot in available_slots %}
+                    <option value="{{ slot['id'] }}">{{ slot['zone'] }} - {{ slot['name'] }} ({{ slot['vehicle_type'] }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Record Entry</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
