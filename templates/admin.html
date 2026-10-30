@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Admin Dashboard: Manage Slots</h2>
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="POST" action="/admin/add" class="row g-3">
+            <div class="col-md-3">
+                <input type="text" name="name" class="form-control" placeholder="Slot Name (e.g., A1)" required>
+            </div>
+            <div class="col-md-3">
+                <input type="text" name="zone" class="form-control" placeholder="Zone (e.g., North)" required>
+            </div>
+            <div class="col-md-3">
+                <select name="vehicle_type" class="form-select" required>
+                    <option value="" disabled selected>Vehicle Type</option>
+                    <option value="two-wheeler">Two-Wheeler</option>
+                    <option value="four-wheeler">Four-Wheeler</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-success w-100">Add Slot</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Zone</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for slot in slots %}
+        <tr>
+            <td>{{ slot['id'] }}</td>
+            <td>{{ slot['name'] }}</td>
+            <td>{{ slot['zone'] }}</td>
+            <td>{{ slot['vehicle_type'] }}</td>
+            <td>{{ 'Occupied' if slot['is_occupied'] else 'Free' }}</td>
+            <td>
+                <form method="POST" action="/admin/delete/{{ slot['id'] }}" style="display:inline;">
+                    <button class="btn btn-sm btn-danger" onclick="return confirm('Remove slot?')">Remove</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

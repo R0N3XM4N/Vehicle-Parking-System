@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Record Vehicle Exit</h2>
+<table class="table table-striped mt-3">
+    <thead>
+        <tr>
+            <th>Vehicle Number</th>
+            <th>Slot</th>
+            <th>Zone</th>
+            <th>Type</th>
+            <th>Entry Time</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for log in active_logs %}
+        <tr>
+            <td>{{ log['vehicle_number'] }}</td>
+            <td>{{ log['slot_name'] }}</td>
+            <td>{{ log['zone'] }}</td>
+            <td>{{ log['vehicle_type'] }}</td>
+            <td>{{ log['entry_time'] }}</td>
+            <td>
+                <form method="POST" action="/exit/{{ log['log_id'] }}">
+                    <button type="submit" class="btn btn-warning btn-sm">Record Exit</button>
+                </form>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center">No vehicles currently parked.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
