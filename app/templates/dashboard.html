@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | Vehicle Parking System{% endblock %}
+
+{% block content %}
+  <section class="dashboard-card">
+    <p class="eyebrow">Dashboard</p>
+    <h1>Welcome, {{ name }}!</h1>
+    <p class="dashboard-intro">
+      Find an available parking space or manage your existing reservations.
+    </p>
+    <div class="dashboard-actions">
+      <a class="button" href="{{ url_for('main.parking') }}">View Parking Slots</a>
+      <a class="button button-secondary" href="{{ url_for('main.my_reservations') }}">My Reservations</a>
+    </div>
+  </section>
+{% endblock %}

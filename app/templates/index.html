@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Vehicle Parking System{% endblock %}
+
+{% block content %}
+  <section class="hero-card">
+    <div>
+      <p class="eyebrow">Simple parking, less waiting</p>
+      <h1>Find your space before you arrive.</h1>
+      <p class="hero-copy">
+        Reserve an available parking slot, record your entry and exit, and keep
+        every parking visit in one place.
+      </p>
+      <div class="button-row">
+        <a class="button" href="{{ url_for('main.register') }}">Create an account</a>
+        <a class="button button-secondary" href="{{ url_for('main.login') }}">Log in</a>
+      </div>
+    </div>
+    <aside class="hero-summary" aria-label="Parking system highlights">
+      <div><strong>10</strong><span>Parking slots</span></div>
+      <div><strong>₹30</strong><span>Hourly rate</span></div>
+      <div><strong>24/7</strong><span>Reservation access</span></div>
+    </aside>
+  </section>
+{% endblock %}

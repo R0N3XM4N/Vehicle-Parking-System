@@ -1,0 +1,24 @@
+
+name: Vehicle Parking System CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Verify project files
+        run: |
+          test -f README.md
+          test -f docs/TEST_PLAN.md
+          test -f docs/Vehicle-Parking-System_SRS.pdf
+          test -f docs/Vehicle_Parking_System_SAD.pdf
+          echo "Required project documents found."

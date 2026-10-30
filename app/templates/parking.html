@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Parking Slots | Vehicle Parking System{% endblock %}
+
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow">Parking availability</p>
+      <h1>Choose a parking slot</h1>
+      <p>Available slots can be reserved immediately at the displayed hourly rate.</p>
+    </div>
+    <a class="button button-secondary" href="{{ url_for('main.my_reservations') }}">My Reservations</a>
+  </div>
+  <section class="slot-grid" aria-label="Parking slots">
+    {% for slot in slots %}
+      <article class="slot-card{% if slot.is_occupied %} slot-card-occupied{% endif %}">
+        <div class="slot-card-top">
+          <span class="slot-icon" aria-hidden="true">P</span>
+          <span class="status-badge status-{{ 'occupied' if slot.is_occupied else 'available' }}">
+            {{ 'Occupied' if slot.is_occupied else 'Available' }}
+          </span>
+        </div>
+        <h2>{{ slot.slot_number }}</h2>
+        <p class="slot-rate"><strong>₹{{ "%.2f"|format(slot.hourly_rate) }}</strong> / hour</p>
+        {% if slot.is_occupied %}
+          <span class="button button-disabled" aria-disabled="true">Not available</span>
+        {% else %}
+          <a class="button" href="{{ url_for('main.reserve', slot_id=slot.id) }}">Reserve slot</a>
+        {% endif %}
+      </article>
+    {% else %}
+      <div class="empty-state">No parking slots have been configured.</div>
+    {% endfor %}
+  </section>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}My Reservations | Vehicle Parking System{% endblock %}
+
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow">Your parking activity</p>
+      <h1>My Reservations</h1>
+      <p>Track active reservations and review completed parking visits.</p>
+    </div>
+    <a class="button" href="{{ url_for('main.parking') }}">Reserve another slot</a>
+  </div>
+  <section class="reservation-list">
+    {% for reservation in reservations %}
+      <article class="reservation-card">
+        <div class="reservation-card-header">
+          <div>
+            <p class="reservation-number">Reservation #{{ reservation.id }}</p>
+            <h2>{{ reservation.parking_slot.slot_number }}</h2>
+          </div>
+          <span class="status-badge status-{{ reservation.status }}">{{ reservation.status|title }}</span>
+        </div>
+        <dl class="reservation-details">
+          <div><dt>Vehicle</dt><dd>{{ reservation.vehicle_number }}</dd></div>
+          <div><dt>Hourly rate</dt><dd>₹{{ "%.2f"|format(reservation.parking_slot.hourly_rate) }}</dd></div>
+          <div><dt>Reserved at</dt><dd>{{ reservation.start_time.strftime('%d %b %Y, %I:%M %p') }}</dd></div>
+          {% if reservation.status == "completed" %}
+            <div><dt>Total fee</dt><dd>₹{{ "%.2f"|format(reservation.fee) }}</dd></div>
+          {% endif %}
+        </dl>
+        {% if reservation.status == "reserved" %}
+          <form method="POST" action="{{ url_for('main.vehicle_entry', reservation_id=reservation.id) }}">
+            <button class="button" type="submit">Record Vehicle Entry</button>
+          </form>
+        {% elif reservation.status == "parked" %}
+          <form method="POST" action="{{ url_for('main.vehicle_exit', reservation_id=reservation.id) }}">
+            <button class="button" type="submit">Record Exit and Calculate Fee</button>
+          </form>
+        {% elif reservation.status == "completed" %}
+          <p class="payment-note">✓ Simulated payment recorded</p>
+        {% endif %}
+      </article>
+    {% else %}
+      <div class="empty-state">
+        <h2>No reservations yet</h2>
+        <p>Choose an available parking slot to create your first reservation.</p>
+        <a class="button" href="{{ url_for('main.parking') }}">Browse parking slots</a>
+      </div>
+    {% endfor %}
+  </section>
+{% endblock %}

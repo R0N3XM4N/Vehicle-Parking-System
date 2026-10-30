@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Reserve {{ slot.slot_number }} | Vehicle Parking System{% endblock %}
+
+{% block content %}
+  <section class="reservation-form-card">
+    <a class="back-link" href="{{ url_for('main.parking') }}">← Back to parking slots</a>
+    <p class="eyebrow">Confirm reservation</p>
+    <h1>Reserve {{ slot.slot_number }}</h1>
+    <div class="rate-panel">
+      <span>Hourly parking rate</span>
+      <strong>₹{{ "%.2f"|format(slot.hourly_rate) }}</strong>
+    </div>
+    <form class="stacked-form" method="POST">
+      <div class="form-group">
+        <label for="vehicle_number">Vehicle registration number</label>
+        <input id="vehicle_number" type="text" name="vehicle_number" maxlength="20"
+               placeholder="e.g. KA 01 AB 1234" autocomplete="off" required>
+        <small>Use the registration number shown on your vehicle.</small>
+      </div>
+      <button class="button form-submit" type="submit">Confirm Reservation</button>
+    </form>
+  </section>
+{% endblock %}
