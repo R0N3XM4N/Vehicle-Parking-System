@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Admin | Vehicle Parking System{% endblock %}
+
+{% block content %}
+  <div class="page-heading">
+    <div><p class="eyebrow">Administration</p><h1>Manage parking slots</h1><p>Add slots and keep their zones, vehicle types, and hourly rates current.</p></div>
+    <a class="button button-secondary" href="{{ url_for('main.reports') }}">View Reports</a>
+  </div>
+  <section class="metric-grid" aria-label="Parking summary">
+    <article class="metric-card"><span>Total slots</span><strong>{{ stats.total }}</strong></article>
+    <article class="metric-card"><span>Available now</span><strong>{{ stats.available }}</strong></article>
+    <article class="metric-card"><span>Occupied now</span><strong>{{ stats.occupied }}</strong></article>
+    <article class="metric-card"><span>Average rate</span><strong>₹{{ "%.2f"|format(stats.rate_average) }}</strong></article>
+  </section>
+  <section class="admin-panel">
+    <h2>Add a parking slot</h2>
+    <form class="admin-add-form" method="POST" action="{{ url_for('main.admin_add_slot') }}">
+      <div class="form-group"><label for="new-number">Slot number</label><input id="new-number" name="slot_number" required></div>
+      <div class="form-group"><label for="new-zone">Zone</label><input id="new-zone" name="zone" required></div>
+      <div class="form-group"><label for="new-type">Vehicle type</label><select id="new-type" name="vehicle_type" required><option value="four-wheeler">Four-wheeler</option><option value="two-wheeler">Two-wheeler</option></select></div>
+      <div class="form-group"><label for="new-rate">Hourly rate (₹)</label><input id="new-rate" name="hourly_rate" type="number" min="1" step="0.01" required></div>
+      <button class="button" type="submit">Add Slot</button>
+    </form>
+  </section>
+  <section class="admin-panel">
+    <h2>Existing slots</h2>
+    <div class="data-table-wrapper">
+      <table class="data-table">
+        <thead><tr><th>Slot</th><th>Zone</th><th>Vehicle</th><th>Rate</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          {% for slot in slots %}
+            <tr>
+              <td colspan="6">
+                <form class="slot-edit-form" method="POST" action="{{ url_for('main.admin_edit_slot', slot_id=slot.id) }}">
+                  <input aria-label="Slot number" name="slot_number" value="{{ slot.slot_number }}" required>
+                  <input aria-label="Zone" name="zone" value="{{ slot.zone }}" required>
+                  <select aria-label="Vehicle type" name="vehicle_type"><option value="four-wheeler"{% if slot.vehicle_type == 'four-wheeler' %} selected{% endif %}>Four-wheeler</option><option value="two-wheeler"{% if slot.vehicle_type == 'two-wheeler' %} selected{% endif %}>Two-wheeler</option></select>
+                  <input aria-label="Hourly rate" name="hourly_rate" type="number" min="1" step="0.01" value="{{ '%.2f'|format(slot.hourly_rate) }}" required>
+                  <span class="status-badge status-{{ 'occupied' if slot.is_occupied else 'available' }}">{{ 'Occupied' if slot.is_occupied else 'Available' }}</span>
+                  <span class="table-actions"><button class="button button-small" type="submit">Save</button><button class="button button-small button-danger" type="submit" formaction="{{ url_for('main.admin_delete_slot', slot_id=slot.id) }}" onclick="return confirm('Remove this unused slot?')">Remove</button></span>
+                </form>
+              </td>
+            </tr>
+          {% else %}<tr><td colspan="6">No parking slots configured.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

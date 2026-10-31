@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Reports | Vehicle Parking System{% endblock %}
+
+{% block content %}
+  <div class="page-heading">
+    <div><p class="eyebrow">Operations</p><h1>Occupancy and revenue</h1><p>Paid transactions are grouped into daily or monthly reporting periods.</p></div>
+    <a class="button button-secondary" href="{{ url_for('main.admin_dashboard') }}">Manage Slots</a>
+  </div>
+  <nav class="segmented-control" aria-label="Report period">
+    <a href="{{ url_for('main.reports', period='daily') }}"{% if period == 'daily' %} aria-current="page"{% endif %}>Daily</a>
+    <a href="{{ url_for('main.reports', period='monthly') }}"{% if period == 'monthly' %} aria-current="page"{% endif %}>Monthly</a>
+  </nav>
+  <section class="metric-grid" aria-label="Report totals">
+    <article class="metric-card"><span>Parking visits</span><strong>{{ totals.occupancy }}</strong></article>
+    <article class="metric-card"><span>Current occupancy</span><strong>{{ totals.current_occupancy }}</strong></article>
+    <article class="metric-card"><span>Paid transactions</span><strong>{{ totals.transactions }}</strong></article>
+    <article class="metric-card"><span>Total revenue</span><strong>₹{{ "%.2f"|format(totals.revenue) }}</strong></article>
+  </section>
+  <section class="admin-panel">
+    <h2>{{ period|title }} totals</h2>
+    <div class="data-table-wrapper"><table class="data-table report-table"><thead><tr><th>Period</th><th>Parking visits</th><th>Paid transactions</th><th>Revenue</th></tr></thead><tbody>{% for row in rows %}<tr><td>{{ row.period }}</td><td>{{ row.occupancy }}</td><td>{{ row.transactions }}</td><td>₹{{ "%.2f"|format(row.revenue) }}</td></tr>{% else %}<tr><td colspan="4">No completed parking transactions yet.</td></tr>{% endfor %}</tbody></table></div>
+  </section>
+{% endblock %}

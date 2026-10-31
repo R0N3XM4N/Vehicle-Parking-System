@@ -1,14 +1,15 @@
 # Vehicle Parking System
 
-## Sprint 1 — Member 2: Parking Management Module
+## Integrated Vehicle Parking System
 
-This module addresses five core Sprint 1 requirements outlined in the Software Requirements Specification (SRS):
+The canonical application is the authenticated Flask app started by `run.py`. It includes:
 
-- **PVT-F-004:** Real-time parking slot availability grouped by zone.
-- **PVT-F-005:** Filter parking slots by two-wheeler and four-wheeler.
-- **PVT-F-015:** Admin interface to add, edit, and remove parking slots.
-- **PVT-F-008:** Record vehicle entry and update parking slot status.
-- **PVT-F-009:** Record vehicle exit and free the parking slot without fee processing.
+- Responsive shared templates, login, registration, and session-aware navigation.
+- Slot search and filters for zone, vehicle type, and availability.
+- Reservation time windows with overlap prevention and confirmation.
+- Vehicle entry, fee preview, exit, simulated payment, and printable receipts.
+- Role-protected admin slot/rate management.
+- Daily and monthly occupancy/revenue reports.
 
 ## Prerequisites
 
@@ -33,10 +34,31 @@ This module addresses five core Sprint 1 requirements outlined in the Software R
 
    `http://127.0.0.1:5000`
 
+## Create an admin account
+
+Set the following environment variables before the first run. No credentials are stored in the repository.
+
+PowerShell:
+
+```powershell
+$env:VPS_ADMIN_EMAIL = "admin@example.com"
+$env:VPS_ADMIN_PASSWORD = "choose-a-secure-password"
+python run.py
+```
+
+If the email already belongs to a registered user, that user is promoted to the admin role on startup.
+
+## Run the automated tests
+
+```bash
+python -m unittest discover -s tests -v
+```
+
 ## Project Structure
 
-- `app/` — Application models, routes, and HTML templates.
+- `app/` — Canonical application models, routes, and HTML templates.
 - `static/` — CSS stylesheets.
+- `tests/` — Automated acceptance-flow tests.
 - `docs/` — Software requirements, design documentation, and test plan.
 - `run.py` — Application entry point.
 - `requirements.txt` — Python dependencies.

@@ -8,17 +8,28 @@
     <p class="eyebrow">Confirm reservation</p>
     <h1>Reserve {{ slot.slot_number }}</h1>
     <div class="rate-panel">
-      <span>Hourly parking rate</span>
+      <span>{{ slot.zone }} · {{ slot.vehicle_type|replace('-', ' ')|title }}</span>
       <strong>₹{{ "%.2f"|format(slot.hourly_rate) }}</strong>
     </div>
-    <form class="stacked-form" method="POST">
+    <form class="stacked-form" id="reservation-form" method="POST">
       <div class="form-group">
         <label for="vehicle_number">Vehicle registration number</label>
-        <input id="vehicle_number" type="text" name="vehicle_number" maxlength="20"
+        <input id="vehicle_number" type="text" name="vehicle_number" maxlength="20" value="{{ vehicle_number }}"
                placeholder="e.g. KA 01 AB 1234" autocomplete="off" required>
         <small>Use the registration number shown on your vehicle.</small>
       </div>
-      <button class="button form-submit" type="submit">Confirm Reservation</button>
+      <div class="form-grid-two">
+        <div class="form-group">
+          <label for="start_time">Start time</label>
+          <input id="start_time" type="datetime-local" name="start_time" value="{{ default_start }}" required>
+        </div>
+        <div class="form-group">
+          <label for="end_time">End time</label>
+          <input id="end_time" type="datetime-local" name="end_time" value="{{ default_end }}" required>
+        </div>
+      </div>
+      <small>Choose a future window of up to 24 hours. Overlapping reservations are blocked.</small>
+      <button class="button form-submit" type="submit" onclick="return confirm('Confirm this parking reservation and time window?')">Review and Confirm Reservation</button>
     </form>
   </section>
 {% endblock %}

@@ -17,9 +17,9 @@
       </div>
     </div>
     <aside class="hero-summary" aria-label="Parking system highlights">
-      <div><strong>10</strong><span>Parking slots</span></div>
-      <div><strong>₹30</strong><span>Hourly rate</span></div>
-      <div><strong>24/7</strong><span>Reservation access</span></div>
+      <div><strong>{{ total_slots }}</strong><span>Parking slots</span></div>
+      <div><strong>{{ available_slots }}</strong><span>Currently available</span></div>
+      <div><strong>₹{{ "%.0f"|format(lowest_rate) }}</strong><span>Rates from / hour</span></div>
     </aside>
   </section>
 {% endblock %}

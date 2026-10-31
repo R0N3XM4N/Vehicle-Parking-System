@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Checkout | Vehicle Parking System{% endblock %}
+
+{% block content %}
+  <section class="checkout-card">
+    <p class="eyebrow">Exit confirmation</p>
+    <h1>Review your parking fee</h1>
+    <p class="card-intro">The fee is calculated before your exit is recorded. Confirm only when the vehicle is ready to leave.</p>
+    <dl class="summary-list">
+      <div><dt>Slot</dt><dd>{{ reservation.parking_slot.slot_number }}</dd></div>
+      <div><dt>Vehicle</dt><dd>{{ reservation.vehicle_number }}</dd></div>
+      <div><dt>Entry time</dt><dd>{{ quote.log.entry_time.strftime('%d %b %Y, %I:%M %p') }}</dd></div>
+      <div><dt>Billed duration</dt><dd>{{ quote.hours }} hour{{ 's' if quote.hours != 1 }}</dd></div>
+      <div><dt>Hourly rate</dt><dd>₹{{ "%.2f"|format(reservation.parking_slot.hourly_rate) }}</dd></div>
+      <div class="summary-total"><dt>Fee due</dt><dd>₹{{ "%.2f"|format(quote.fee) }}</dd></div>
+    </dl>
+    <form method="POST">
+      <div class="button-row">
+        <button class="button" type="submit">Confirm Exit and Continue to Payment</button>
+        <a class="button button-secondary" href="{{ url_for('main.my_reservations') }}">Cancel</a>
+      </div>
+    </form>
+  </section>
+{% endblock %}

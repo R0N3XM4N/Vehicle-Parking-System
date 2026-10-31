@@ -24,6 +24,10 @@ class User(db.Model):
 class ParkingSlot(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     slot_number = db.Column(db.String(20), unique=True, nullable=False)
+    zone = db.Column(db.String(50), nullable=False, default="Zone A")
+    vehicle_type = db.Column(
+        db.String(20), nullable=False, default="four-wheeler"
+    )
     is_occupied = db.Column(db.Boolean, nullable=False, default=False)
     hourly_rate = db.Column(db.Float, nullable=False, default=30.0)
 
@@ -42,6 +46,7 @@ class Reservation(db.Model):
     )
     vehicle_number = db.Column(db.String(20), nullable=False)
     start_time = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    scheduled_end_time = db.Column(db.DateTime, nullable=True)
     end_time = db.Column(db.DateTime, nullable=True)
     status = db.Column(db.String(20), nullable=False, default="reserved")
     fee = db.Column(db.Float, nullable=False, default=0.0)
@@ -66,5 +71,6 @@ class Payment(db.Model):
     amount = db.Column(db.Float, nullable=False)
     status = db.Column(db.String(20), nullable=False, default="pending")
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    paid_at = db.Column(db.DateTime, nullable=True)
 
     reservation = db.relationship("Reservation", backref="payments")
