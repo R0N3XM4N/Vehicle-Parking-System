@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Payment | Vehicle Parking System{% endblock %}
+
+{% block content %}
+  <section class="checkout-card">
+    <p class="eyebrow">Simulated payment</p>
+    <h1>Complete payment</h1>
+    <p class="card-intro">No real card or bank details are collected in this academic demonstration.</p>
+    <dl class="summary-list">
+      <div><dt>Transaction</dt><dd>VPS-{{ "%06d"|format(payment.id) }}</dd></div>
+      <div><dt>Slot</dt><dd>{{ payment.reservation.parking_slot.slot_number }}</dd></div>
+      <div><dt>Vehicle</dt><dd>{{ payment.reservation.vehicle_number }}</dd></div>
+      <div class="summary-total"><dt>Amount</dt><dd>₹{{ "%.2f"|format(payment.amount) }}</dd></div>
+    </dl>
+    <form method="POST">
+      <button class="button form-submit" type="submit" onclick="return confirm('Record this simulated payment?')">Pay ₹{{ "%.2f"|format(payment.amount) }}</button>
+    </form>
+  </section>
+{% endblock %}

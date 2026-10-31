@@ -12,6 +12,10 @@
     <div class="dashboard-actions">
       <a class="button" href="{{ url_for('main.parking') }}">View Parking Slots</a>
       <a class="button button-secondary" href="{{ url_for('main.my_reservations') }}">My Reservations</a>
+      {% if is_admin %}
+        <a class="button button-secondary" href="{{ url_for('main.admin_dashboard') }}">Manage Parking</a>
+        <a class="button button-secondary" href="{{ url_for('main.reports') }}">View Reports</a>
+      {% endif %}
     </div>
   </section>
 {% endblock %}

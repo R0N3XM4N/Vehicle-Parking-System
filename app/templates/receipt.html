@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Receipt VPS-{{ "%06d"|format(payment.id) }}{% endblock %}
+
+{% block content %}
+  <section class="receipt-card">
+    <div class="receipt-header">
+      <div>
+        <p class="eyebrow">Payment receipt</p>
+        <h1>Payment successful</h1>
+      </div>
+      <span class="status-badge status-completed">Paid</span>
+    </div>
+    <p class="receipt-transaction">Transaction ID <strong>VPS-{{ "%06d"|format(payment.id) }}</strong></p>
+    <dl class="summary-list">
+      <div><dt>Customer</dt><dd>{{ payment.reservation.user.name }}</dd></div>
+      <div><dt>Vehicle</dt><dd>{{ payment.reservation.vehicle_number }}</dd></div>
+      <div><dt>Parking slot</dt><dd>{{ payment.reservation.parking_slot.slot_number }}</dd></div>
+      <div><dt>Entry time</dt><dd>{{ payment.reservation.vehicle_logs[0].entry_time.strftime('%d %b %Y, %I:%M %p') }}</dd></div>
+      <div><dt>Exit time</dt><dd>{{ payment.reservation.end_time.strftime('%d %b %Y, %I:%M %p') }}</dd></div>
+      <div><dt>Paid at</dt><dd>{{ (payment.paid_at or payment.created_at).strftime('%d %b %Y, %I:%M %p') }}</dd></div>
+      <div class="summary-total"><dt>Total paid</dt><dd>₹{{ "%.2f"|format(payment.amount) }}</dd></div>
+    </dl>
+    <div class="button-row no-print">
+      <button class="button" type="button" onclick="window.print()">Print Receipt</button>
+      <a class="button button-secondary" href="{{ url_for('main.my_reservations') }}">Back to Reservations</a>
+    </div>
+  </section>
+{% endblock %}

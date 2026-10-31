@@ -7,14 +7,19 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   </head>
   <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
     <header class="site-header">
       <div class="header-inner">
         <a class="brand" href="{{ url_for('main.home') }}">Vehicle Parking System</a>
         <nav class="site-nav" aria-label="Main navigation">
           {% if session.get('user_id') %}
-            <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
-            <a href="{{ url_for('main.parking') }}">Parking</a>
-            <a href="{{ url_for('main.my_reservations') }}">Reservations</a>
+            <a href="{{ url_for('main.dashboard') }}"{% if request.endpoint == 'main.dashboard' %} aria-current="page"{% endif %}>Dashboard</a>
+            <a href="{{ url_for('main.parking') }}"{% if request.endpoint in ['main.parking', 'main.reserve'] %} aria-current="page"{% endif %}>Parking</a>
+            <a href="{{ url_for('main.my_reservations') }}"{% if request.endpoint in ['main.my_reservations', 'main.checkout', 'main.payment', 'main.receipt'] %} aria-current="page"{% endif %}>Reservations</a>
+            {% if session.get('user_role') == 'admin' %}
+              <a href="{{ url_for('main.admin_dashboard') }}"{% if request.endpoint == 'main.admin_dashboard' %} aria-current="page"{% endif %}>Admin</a>
+              <a href="{{ url_for('main.reports') }}"{% if request.endpoint == 'main.reports' %} aria-current="page"{% endif %}>Reports</a>
+            {% endif %}
             <a href="{{ url_for('main.logout') }}">Log out</a>
           {% else %}
             <a href="{{ url_for('main.login') }}">Log in</a>
@@ -23,7 +28,7 @@
         </nav>
       </div>
     </header>
-    <main class="page-content">
+    <main class="page-content" id="main-content">
       {% for category, message in get_flashed_messages(with_categories=true) %}
         <div class="flash flash-{{ category }}" role="status">{{ message }}</div>
       {% endfor %}

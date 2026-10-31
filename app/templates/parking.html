@@ -11,6 +11,39 @@
     </div>
     <a class="button button-secondary" href="{{ url_for('main.my_reservations') }}">My Reservations</a>
   </div>
+  <form class="filter-panel" method="GET" aria-label="Filter parking slots">
+    <div class="form-group">
+      <label for="search">Slot number</label>
+      <input id="search" name="search" type="search" value="{{ filters.search }}" placeholder="e.g. A-01">
+    </div>
+    <div class="form-group">
+      <label for="zone">Zone</label>
+      <select id="zone" name="zone">
+        <option value="">All zones</option>
+        {% for zone in zones %}<option value="{{ zone }}"{% if filters.zone == zone %} selected{% endif %}>{{ zone }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="vehicle_type">Vehicle type</label>
+      <select id="vehicle_type" name="vehicle_type">
+        <option value="">All vehicles</option>
+        <option value="two-wheeler"{% if filters.vehicle_type == 'two-wheeler' %} selected{% endif %}>Two-wheeler</option>
+        <option value="four-wheeler"{% if filters.vehicle_type == 'four-wheeler' %} selected{% endif %}>Four-wheeler</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="availability">Current status</label>
+      <select id="availability" name="availability">
+        <option value="">Any status</option>
+        <option value="available"{% if filters.availability == 'available' %} selected{% endif %}>Available</option>
+        <option value="occupied"{% if filters.availability == 'occupied' %} selected{% endif %}>Occupied</option>
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button class="button" type="submit">Apply filters</button>
+      <a class="button button-secondary" href="{{ url_for('main.parking') }}">Clear</a>
+    </div>
+  </form>
   <section class="slot-grid" aria-label="Parking slots">
     {% for slot in slots %}
       <article class="slot-card{% if slot.is_occupied %} slot-card-occupied{% endif %}">
@@ -21,11 +54,15 @@
           </span>
         </div>
         <h2>{{ slot.slot_number }}</h2>
+        <p class="slot-meta">{{ slot.zone }} · {{ slot.vehicle_type|replace('-', ' ')|title }}</p>
         <p class="slot-rate"><strong>₹{{ "%.2f"|format(slot.hourly_rate) }}</strong> / hour</p>
+        {% if reservation_counts.get(slot.id, 0) %}
+          <p class="reservation-window-note">{{ reservation_counts[slot.id] }} active reservation{{ 's' if reservation_counts[slot.id] != 1 }}</p>
+        {% endif %}
         {% if slot.is_occupied %}
           <span class="button button-disabled" aria-disabled="true">Not available</span>
         {% else %}
-          <a class="button" href="{{ url_for('main.reserve', slot_id=slot.id) }}">Reserve slot</a>
+          <a class="button" href="{{ url_for('main.reserve', slot_id=slot.id) }}">Choose time</a>
         {% endif %}
       </article>
     {% else %}
