@@ -8,6 +8,7 @@
     <h1>Log in</h1>
     <p class="card-intro">Access your parking reservations and available slots.</p>
     <form class="stacked-form" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label for="email">Email address</label>
         <input id="email" type="email" name="email" autocomplete="email" required>

@@ -51,8 +51,34 @@ If the email already belongs to a registered user, that user is promoted to the 
 ## Run the automated tests
 
 ```bash
+pip install -r requirements-dev.txt
 python -m unittest discover -s tests -v
 ```
+
+Run the same coverage commands as CI:
+
+```bash
+python -m coverage run --source=app -m xmlrunner discover -s tests -o test-results
+python -m coverage report --fail-under=80
+python -m coverage xml
+```
+
+CI tests Python 3.10 and 3.13 and uploads JUnit/coverage XML artifacts.
+See [Sprint 2 stories and audit recheck](docs/SPRINT_2.md) for acceptance/test
+mapping, the five-failure lockout decision and outstanding SRS gaps.
+
+## Session and form configuration
+
+Set `VPS_SECRET_KEY` to a stable random secret before startup. If absent, a
+random key is generated for that process; restarts invalidate sessions and
+multiple workers require a shared configured key. Never commit secrets.
+Cookies are HttpOnly with SameSite=Lax. Set `VPS_COOKIE_SECURE=1` when serving
+through HTTPS; leave it unset for local HTTP. TLS is a deployment responsibility.
+
+Every POST form requires a CSRF token. Logout uses POST. Authentication still
+uses Flask sessions rather than JWT. Five consecutive wrong passwords lock the
+account for 15 minutes. Existing SQLite databases receive new lockout columns
+at startup. Payments are simulated; no external gateway is contacted.
 
 ## Project Structure
 

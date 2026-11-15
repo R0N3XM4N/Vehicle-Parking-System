@@ -12,6 +12,9 @@ class User(db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(20), nullable=False, default="user")
 
+    failed_login_attempts = db.Column(db.Integer, nullable=False, default=0)
+    locked_until = db.Column(db.DateTime, nullable=True)
+
     reservations = db.relationship("Reservation", backref="user", lazy=True)
 
     def set_password(self, password):

@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from math import ceil
 
@@ -7,16 +7,21 @@ from flask import (
     Blueprint,
     abort,
     flash,
+    g,
     redirect,
     render_template,
     request,
     session,
     url_for,
 )
-from sqlalchemy import or_
+from sqlalchemy import case, or_, update
+from sqlalchemy.exc import IntegrityError
 
 from app import db
 from app.models import ParkingSlot, Payment, Reservation, User, VehicleLog
+from app.validation import (
+    plain_text, valid_email, valid_vehicle_number, parse_rate, valid_slot,
+)
 
 
 main = Blueprint("main", __name__)
@@ -25,9 +30,14 @@ main = Blueprint("main", __name__)
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if "user_id" not in session:
+        user_id = session.get("user_id")
+        user = db.session.get(User, user_id) if user_id else None
+        if user is None:
+            session.clear()
             flash("Please log in first.", "error")
             return redirect(url_for("main.login"))
+        g.current_user = user
+        session["user_role"] = user.role
         return view(*args, **kwargs)
 
     return wrapped
@@ -37,8 +47,7 @@ def admin_required(view):
     @wraps(view)
     @login_required
     def wrapped(*args, **kwargs):
-        user = db.session.get(User, session["user_id"])
-        if user is None or user.role != "admin":
+        if g.current_user.role != "admin":
             abort(403)
         return view(*args, **kwargs)
 
@@ -102,14 +111,14 @@ def register():
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
 
-        if not name or not email or not password:
+        if not plain_text(name, 100) or not email or not password:
             flash("All fields are required.", "error")
             return render_template("register.html")
-        if "@" not in email or "." not in email.rsplit("@", 1)[-1]:
+        if not valid_email(email):
             flash("Enter a valid email address.", "error")
             return render_template("register.html")
-        if len(password) < 8:
-            flash("Password must be at least 8 characters.", "error")
+        if not 8 <= len(password) <= 128:
+            flash("Password must be between 8 and 128 characters.", "error")
             return render_template("register.html")
         if User.query.filter_by(email=email).first():
             flash("An account with that email already exists.", "error")
@@ -118,7 +127,12 @@ def register():
         user = User(name=name, email=email)
         user.set_password(password)
         db.session.add(user)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            flash("An account with that email already exists.", "error")
+            return render_template("register.html"), 409
         flash("Registration successful. Please log in.", "success")
         return redirect(url_for("main.login"))
 
@@ -130,16 +144,58 @@ def login():
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
+        if not valid_email(email) or not 1 <= len(password) <= 128:
+            flash("Invalid email or password.", "error")
+            return render_template("login.html"), 401
         user = User.query.filter_by(email=email).first()
+        # SQLite stores naive UTC for the lockout deadline.
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        if user and user.locked_until and user.locked_until > now:
+            flash("Account locked. Try again in 15 minutes.", "error")
+            return render_template("login.html"), 429
 
         if user and user.check_password(password):
+            # A concurrent failed attempt must not be able to bypass a lock.
+            result = db.session.execute(
+                update(User).where(
+                    User.id == user.id,
+                    or_(User.locked_until.is_(None), User.locked_until <= now),
+                ).values(failed_login_attempts=0, locked_until=None)
+            )
+            db.session.commit()
+            if result.rowcount != 1:
+                flash("Account locked. Try again in 15 minutes.", "error")
+                return render_template("login.html"), 429
             session.clear()
             session["user_id"] = user.id
             session["user_name"] = user.name
             session["user_role"] = user.role
             return redirect(url_for("main.dashboard"))
 
+        if user:
+            # Increment in SQL, so simultaneous failures cannot lose updates.
+            attempts = case(
+                (User.locked_until <= now, 1),
+                else_=User.failed_login_attempts + 1,
+            )
+            db.session.execute(
+                update(User).where(
+                    User.id == user.id,
+                    or_(User.locked_until.is_(None), User.locked_until <= now),
+                ).values(
+                    failed_login_attempts=attempts,
+                    locked_until=case(
+                        (attempts >= 5, now + timedelta(minutes=15)), else_=None
+                    ),
+                )
+            )
+            db.session.commit()
+            db.session.refresh(user)
+            if user.locked_until and user.locked_until > now:
+                flash("Account locked. Try again in 15 minutes.", "error")
+                return render_template("login.html"), 429
         flash("Invalid email or password.", "error")
+        return render_template("login.html"), 401
     return render_template("login.html")
 
 
@@ -153,7 +209,7 @@ def dashboard():
     )
 
 
-@main.route("/logout")
+@main.route("/logout", methods=["POST"])
 def logout():
     session.clear()
     flash("You have been logged out.", "success")
@@ -167,6 +223,13 @@ def parking():
     zone = request.args.get("zone", "").strip()
     vehicle_type = request.args.get("vehicle_type", "").strip()
     availability = request.args.get("availability", "").strip()
+
+    if (
+        len(search) > 100 or len(zone) > 50
+        or vehicle_type not in {"", "two-wheeler", "four-wheeler"}
+        or availability not in {"", "available", "occupied"}
+    ):
+        abort(400)
 
     query = ParkingSlot.query
     if search:
@@ -223,7 +286,7 @@ def reserve(slot_id):
         start_time = parse_local_datetime(request.form.get("start_time"))
         scheduled_end_time = parse_local_datetime(request.form.get("end_time"))
 
-        if not vehicle_number or len(vehicle_number) > 20:
+        if not valid_vehicle_number(vehicle_number):
             flash("Enter a valid vehicle number.", "error")
         elif start_time is None or scheduled_end_time is None:
             flash("Choose a valid reservation start and end time.", "error")
@@ -356,6 +419,14 @@ def checkout(reservation_id):
         return redirect(url_for("main.my_reservations"))
 
     if request.method == "POST":
+        result = db.session.execute(
+            update(Reservation).where(
+                Reservation.id == reservation.id, Reservation.status == "parked"
+            ).values(status="awaiting_payment")
+        )
+        if result.rowcount != 1:
+            db.session.rollback()
+            abort(409)
         quote["log"].exit_time = quote["exit_time"]
         reservation.end_time = quote["exit_time"]
         reservation.fee = quote["fee"]
@@ -386,8 +457,17 @@ def payment(payment_id):
         abort(404)
 
     if request.method == "POST" and payment_record.status != "paid":
-        payment_record.status = "paid"
-        payment_record.paid_at = datetime.now()
+        if (payment_record.status != "pending"
+                or payment_record.reservation.status != "awaiting_payment"):
+            abort(409)
+        result = db.session.execute(
+            update(Payment).where(
+                Payment.id == payment_record.id, Payment.status == "pending"
+            ).values(status="paid", paid_at=datetime.now())
+        )
+        if result.rowcount != 1:
+            db.session.rollback()
+            return redirect(url_for("main.receipt", payment_id=payment_record.id))
         payment_record.reservation.status = "completed"
         db.session.commit()
         flash("Payment recorded successfully.", "success")
@@ -402,7 +482,7 @@ def payment(payment_id):
 @login_required
 def receipt(payment_id):
     payment_record = db.session.get(Payment, payment_id)
-    is_admin = session.get("user_role") == "admin"
+    is_admin = g.current_user.role == "admin"
     if payment_record is None or (
         payment_record.reservation.user_id != session["user_id"] and not is_admin
     ):
@@ -437,17 +517,9 @@ def admin_add_slot():
     slot_number = request.form.get("slot_number", "").strip().upper()
     zone = request.form.get("zone", "").strip()
     vehicle_type = request.form.get("vehicle_type", "").strip()
-    try:
-        hourly_rate = float(request.form.get("hourly_rate", ""))
-    except ValueError:
-        hourly_rate = 0
+    hourly_rate = parse_rate(request.form.get("hourly_rate", ""))
 
-    if (
-        not slot_number
-        or not zone
-        or vehicle_type not in {"two-wheeler", "four-wheeler"}
-        or hourly_rate <= 0
-    ):
+    if not valid_slot(slot_number, zone, vehicle_type, hourly_rate):
         flash("Enter valid details for the new parking slot.", "error")
     elif ParkingSlot.query.filter_by(slot_number=slot_number).first():
         flash("A slot with that number already exists.", "error")
@@ -474,20 +546,12 @@ def admin_edit_slot(slot_id):
     slot_number = request.form.get("slot_number", "").strip().upper()
     zone = request.form.get("zone", "").strip()
     vehicle_type = request.form.get("vehicle_type", "").strip()
-    try:
-        hourly_rate = float(request.form.get("hourly_rate", ""))
-    except ValueError:
-        hourly_rate = 0
+    hourly_rate = parse_rate(request.form.get("hourly_rate", ""))
 
     duplicate = ParkingSlot.query.filter(
         ParkingSlot.slot_number == slot_number, ParkingSlot.id != slot.id
     ).first()
-    if (
-        not slot_number
-        or not zone
-        or vehicle_type not in {"two-wheeler", "four-wheeler"}
-        or hourly_rate <= 0
-    ):
+    if not valid_slot(slot_number, zone, vehicle_type, hourly_rate):
         flash("Enter valid slot details and a positive hourly rate.", "error")
     elif duplicate:
         flash("A slot with that number already exists.", "error")
@@ -569,3 +633,13 @@ def forbidden(_error):
 @main.app_errorhandler(404)
 def not_found(_error):
     return render_template("error.html", code=404, message="Page not found"), 404
+
+
+@main.app_errorhandler(400)
+def bad_request(_error):
+    return render_template("error.html", code=400, message="Invalid request"), 400
+
+
+@main.app_errorhandler(409)
+def conflict(_error):
+    return render_template("error.html", code=409, message="Conflicting state"), 409

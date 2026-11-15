@@ -16,6 +16,7 @@
       <div class="summary-total"><dt>Fee due</dt><dd>₹{{ "%.2f"|format(quote.fee) }}</dd></div>
     </dl>
     <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="button-row">
         <button class="button" type="submit">Confirm Exit and Continue to Payment</button>
         <a class="button button-secondary" href="{{ url_for('main.my_reservations') }}">Cancel</a>

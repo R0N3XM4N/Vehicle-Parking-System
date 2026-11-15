@@ -12,6 +12,7 @@
       <strong>₹{{ "%.2f"|format(slot.hourly_rate) }}</strong>
     </div>
     <form class="stacked-form" id="reservation-form" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label for="vehicle_number">Vehicle registration number</label>
         <input id="vehicle_number" type="text" name="vehicle_number" maxlength="20" value="{{ vehicle_number }}"

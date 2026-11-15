@@ -20,7 +20,10 @@
               <a href="{{ url_for('main.admin_dashboard') }}"{% if request.endpoint == 'main.admin_dashboard' %} aria-current="page"{% endif %}>Admin</a>
               <a href="{{ url_for('main.reports') }}"{% if request.endpoint == 'main.reports' %} aria-current="page"{% endif %}>Reports</a>
             {% endif %}
-            <a href="{{ url_for('main.logout') }}">Log out</a>
+            <form method="POST" action="{{ url_for('main.logout') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="button button-secondary" type="submit">Log out</button>
+            </form>
           {% else %}
             <a href="{{ url_for('main.login') }}">Log in</a>
             <a class="nav-cta" href="{{ url_for('main.register') }}">Register</a>

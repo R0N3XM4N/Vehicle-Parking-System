@@ -4,6 +4,8 @@ from flask_sqlalchemy import SQLAlchemy
 from pathlib import Path
 from sqlalchemy import inspect, text
 import os
+import secrets
+from flask_wtf.csrf import CSRFProtect
 
 db = SQLAlchemy()
 
@@ -11,6 +13,10 @@ db = SQLAlchemy()
 def _add_missing_columns():
     """Apply the small SQLite schema upgrades needed by existing installs."""
     upgrades = {
+        "user": {
+            "failed_login_attempts": "INTEGER NOT NULL DEFAULT 0",
+            "locked_until": "DATETIME",
+        },
         "parking_slot": {
             "zone": "VARCHAR(50) DEFAULT 'Zone A'",
             "vehicle_type": "VARCHAR(20) DEFAULT 'four-wheeler'",
@@ -64,7 +70,13 @@ def _add_missing_columns():
 def create_app(test_config=None):
     app = Flask(__name__, static_folder="../static")
 
-    app.config["SECRET_KEY"] = "dev-only-change-before-deployment"
+    app.config["SECRET_KEY"] = os.environ.get("VPS_SECRET_KEY") or secrets.token_hex(32)
+    app.config.update(
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=os.environ.get("VPS_COOKIE_SECURE") == "1",
+        MAX_CONTENT_LENGTH=64 * 1024,
+    )
     app.config["SQLALCHEMY_DATABASE_URI"] = (
         "sqlite:///" + str(Path(app.instance_path) / "parking.db")
     )
@@ -75,6 +87,7 @@ def create_app(test_config=None):
 
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
     db.init_app(app)
+    CSRFProtect(app)
 
     from app.routes import main
     app.register_blueprint(main)
