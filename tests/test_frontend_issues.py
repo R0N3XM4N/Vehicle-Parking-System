@@ -14,6 +14,7 @@ class FrontendIssueTests(unittest.TestCase):
         self.app = create_app(
             {
                 "TESTING": True,
+                "WTF_CSRF_ENABLED": False,
                 "SECRET_KEY": "test-secret",
                 "SQLALCHEMY_DATABASE_URI": f"sqlite:///{database_path}",
             }
@@ -139,7 +140,7 @@ class FrontendIssueTests(unittest.TestCase):
         self.assertIn(b"Payment successful", receipt.data)
         self.assertIn(f"VPS-{payment_id:06d}".encode(), receipt.data)
 
-        self.client.get("/logout")
+        self.client.post("/logout")
         self.login("admin@example.com")
         report = self.client.get("/admin/reports?period=daily")
         self.assertEqual(report.status_code, 200)
@@ -148,7 +149,7 @@ class FrontendIssueTests(unittest.TestCase):
     def test_admin_slot_crud_and_role_protection(self):
         self.login()
         self.assertEqual(self.client.get("/admin").status_code, 403)
-        self.client.get("/logout")
+        self.client.post("/logout")
         self.login("admin@example.com")
 
         added = self.client.post(

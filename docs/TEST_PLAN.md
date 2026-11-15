@@ -201,7 +201,9 @@ Each test case contains:
 | TC-Sec-02 | PRJ-SR-002 | Verify role-based access control | User and admin accounts exist | Attempt admin operations using a normal user account | Unauthorized role access returns 403 / is denied | High |
 | TC-Sec-03 | PRJ-SR-003 | Verify HTTPS/TLS | HTTPS-enabled environment available | Inspect client-server connection/network capture | Client-server communication uses TLS/HTTPS | High |
 | TC-Sec-04 | PRJ-SR-004 | Verify input validation and injection/XSS protection | Test application available | Submit malformed, injection-like, and XSS payloads through relevant inputs | Inputs are validated/sanitized and no SQL/NoSQL injection or XSS vulnerability is observed in the tested paths | High |
-| TC-Sec-05 | PRJ-SR-005 | Verify failed-login account lockout | Test account available | Enter an incorrect password 6 consecutive times | Login is blocked on the 6th failed attempt for 15 minutes | Medium |
+| TC-Sec-05 | PRJ-SR-005 | Verify failed-login account lockout | Test account available | Enter an incorrect password 5 consecutive times; try the correct password during the lock; retry at expiry | The fifth failure starts a 15-minute lock; login is blocked until expiry | Medium |
+
+**Sprint 2 clarification (15 November 2026):** the requester resolved issue #20's conflicting title/acceptance text in favor of locking immediately after the fifth failure. See `docs/SPRINT_2.md` for scope and executable-test mapping.
 
 ### 14. Test Data
 

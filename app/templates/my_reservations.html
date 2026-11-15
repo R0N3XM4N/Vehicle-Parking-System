@@ -32,6 +32,7 @@
         </dl>
         {% if reservation.status == "reserved" %}
           <form method="POST" action="{{ url_for('main.vehicle_entry', reservation_id=reservation.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="button" type="submit">Record Vehicle Entry</button>
           </form>
         {% elif reservation.status == "parked" %}
