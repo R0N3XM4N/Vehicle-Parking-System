@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Vehicle Parking System{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='app.js') }}" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -19,6 +20,7 @@
             {% if session.get('user_role') == 'admin' %}
               <a href="{{ url_for('main.admin_dashboard') }}"{% if request.endpoint == 'main.admin_dashboard' %} aria-current="page"{% endif %}>Admin</a>
               <a href="{{ url_for('main.reports') }}"{% if request.endpoint == 'main.reports' %} aria-current="page"{% endif %}>Reports</a>
+              <a href="{{ url_for('main.audit_logs') }}">Audit logs</a>
             {% endif %}
             <form method="POST" action="{{ url_for('main.logout') }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

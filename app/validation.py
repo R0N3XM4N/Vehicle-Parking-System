@@ -9,20 +9,28 @@ import re
 
 
 def plain_text(value, max_length):
-    return bool(value) and len(value) <= max_length and all(
-        character.isprintable() and character not in "<>" for character in value
+    return (
+        bool(value)
+        and len(value) <= max_length
+        and all(
+            character.isprintable() and character not in "<>" for character in value
+        )
     )
 
 
 def valid_email(value):
     local = value.partition("@")[0]
-    return len(value) <= 120 and re.fullmatch(
-        r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
-        r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
-        r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+",
-        value,
-    ) is not None and ".." not in value and (
-        len(local) <= 64 and not local.startswith(".") and not local.endswith(".")
+    return (
+        len(value) <= 120
+        and re.fullmatch(
+            r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
+            r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+            r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+",
+            value,
+        )
+        is not None
+        and ".." not in value
+        and (len(local) <= 64 and not local.startswith(".") and not local.endswith("."))
     )
 
 

@@ -4,6 +4,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from app import create_app, db
+from app.timeutils import utcnow, local_time
+from zoneinfo import ZoneInfo
+import re
 from app.models import ParkingSlot, Payment, Reservation, User, VehicleLog
 
 
@@ -14,6 +17,7 @@ class FrontendIssueTests(unittest.TestCase):
         self.app = create_app(
             {
                 "TESTING": True,
+                "BCRYPT_ROUNDS": 4,
                 "WTF_CSRF_ENABLED": False,
                 "SECRET_KEY": "test-secret",
                 "SQLALCHEMY_DATABASE_URI": f"sqlite:///{database_path}",
@@ -77,7 +81,9 @@ class FrontendIssueTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"A-01", response.data)
 
-        start = datetime.now().replace(second=0, microsecond=0) + timedelta(hours=1)
+        start = datetime.now(ZoneInfo("Asia/Kolkata")).replace(
+            tzinfo=None, second=0, microsecond=0
+        ) + timedelta(hours=1)
         end = start + timedelta(hours=2)
         reservation_data = {
             "vehicle_number": "KA01AB1234",
@@ -105,8 +111,8 @@ class FrontendIssueTests(unittest.TestCase):
                 user_id=self.user_id,
                 slot_id=self.slot_id,
                 vehicle_number="KA01AB1234",
-                start_time=datetime.now() - timedelta(hours=2),
-                scheduled_end_time=datetime.now() + timedelta(hours=1),
+                start_time=utcnow() - timedelta(hours=2),
+                scheduled_end_time=utcnow() + timedelta(hours=1),
                 status="parked",
             )
             slot = db.session.get(ParkingSlot, self.slot_id)
@@ -116,7 +122,7 @@ class FrontendIssueTests(unittest.TestCase):
             db.session.add(
                 VehicleLog(
                     reservation_id=reservation.id,
-                    entry_time=datetime.now() - timedelta(hours=1, minutes=5),
+                    entry_time=utcnow() - timedelta(hours=1, minutes=5),
                 )
             )
             db.session.commit()
@@ -127,16 +133,21 @@ class FrontendIssueTests(unittest.TestCase):
         self.assertIn(b"Review your parking fee", preview.data)
         self.assertIn("₹60.00".encode(), preview.data)
 
+        token = (
+            re.search(rb'name="quote_token" value="([^"]+)"', preview.data)
+            .group(1)
+            .decode()
+        )
         payment_page = self.client.post(
-            f"/reservation/{reservation_id}/checkout", follow_redirects=True
+            f"/reservation/{reservation_id}/checkout",
+            data={"quote_token": token},
+            follow_redirects=True,
         )
         self.assertIn(b"Complete payment", payment_page.data)
         with self.app.app_context():
             payment_id = Payment.query.one().id
 
-        receipt = self.client.post(
-            f"/payments/{payment_id}", follow_redirects=True
-        )
+        receipt = self.client.post(f"/payments/{payment_id}", follow_redirects=True)
         self.assertIn(b"Payment successful", receipt.data)
         self.assertIn(f"VPS-{payment_id:06d}".encode(), receipt.data)
 

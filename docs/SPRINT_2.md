@@ -1,5 +1,7 @@
 # Sprint 2 stories and verification
 
+Historical PR #51 record. For the subsequent screenshot stories #14–#17 and #27–#33, see [USER_STORIES.md](USER_STORIES.md) and [API.md](API.md); those changes supersede the corresponding gaps listed below.
+
 Scope confirmed by the requester on 15 November 2026: issues #18–#21 plus CI tests.
 The screenshot also contains Sprint 1 issues; this PR does not close those.
 

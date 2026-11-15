@@ -24,8 +24,8 @@
         <dl class="reservation-details">
           <div><dt>Vehicle</dt><dd>{{ reservation.vehicle_number }}</dd></div>
           <div><dt>Hourly rate</dt><dd>₹{{ "%.2f"|format(reservation.parking_slot.hourly_rate) }}</dd></div>
-          <div><dt>Starts</dt><dd>{{ reservation.start_time.strftime('%d %b %Y, %I:%M %p') }}</dd></div>
-          {% if reservation.scheduled_end_time %}<div><dt>Scheduled end</dt><dd>{{ reservation.scheduled_end_time.strftime('%d %b %Y, %I:%M %p') }}</dd></div>{% endif %}
+          <div><dt>Starts</dt><dd>{{ (reservation.start_time|localtime).strftime('%d %b %Y, %I:%M %p') }}</dd></div>
+          {% if reservation.scheduled_end_time %}<div><dt>Scheduled end</dt><dd>{{ (reservation.scheduled_end_time|localtime).strftime('%d %b %Y, %I:%M %p') }}</dd></div>{% endif %}
           {% if reservation.status in ["awaiting_payment", "completed"] %}
             <div><dt>Total fee</dt><dd>₹{{ "%.2f"|format(reservation.fee) }}</dd></div>
           {% endif %}
