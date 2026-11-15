@@ -11,3 +11,4 @@ instance/
 .coverage
 coverage.xml
 test-results/
+certs/
