@@ -1,0 +1,13 @@
+[PASS] Server accepts TLS handshake (TLSv1.3, TLS_AES_256_GCM_SHA384)
+[PASS] Protocol is TLS 1.2 or newer (TLSv1.3)
+[PASS] HTTP response is served over TLS (HTTP/1.1 200 OK)
+[PASS] Legacy TLS 1.0 is rejected 
+[PASS] Legacy TLS 1.1 is rejected 
+[PASS] Plain HTTP is not served on the TLS port (connection refused or closed)
+[PASS] Certificate is not expired (expires 2026-12-15)
+RESULT: PASS
+* SSL connection using TLSv1.3 / AEAD-AES256-GCM-SHA384 / [blank] / UNDEF
+*  subject: CN=localhost
+* using HTTP/1.x
+> GET /login HTTP/1.1
+< HTTP/1.1 200 OK
