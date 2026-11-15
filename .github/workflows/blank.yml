@@ -62,7 +62,8 @@ jobs:
           if-no-files-found: error
 
   browser-stories:
-    runs-on: ubuntu-latest
+    # Match the OS supported by the pinned Chromium/Playwright release.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
