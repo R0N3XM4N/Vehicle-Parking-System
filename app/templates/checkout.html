@@ -10,13 +10,14 @@
     <dl class="summary-list">
       <div><dt>Slot</dt><dd>{{ reservation.parking_slot.slot_number }}</dd></div>
       <div><dt>Vehicle</dt><dd>{{ reservation.vehicle_number }}</dd></div>
-      <div><dt>Entry time</dt><dd>{{ quote.log.entry_time.strftime('%d %b %Y, %I:%M %p') }}</dd></div>
+      <div><dt>Entry time</dt><dd>{{ (quote.log.entry_time|localtime).strftime('%d %b %Y, %I:%M %p') }}</dd></div>
       <div><dt>Billed duration</dt><dd>{{ quote.hours }} hour{{ 's' if quote.hours != 1 }}</dd></div>
-      <div><dt>Hourly rate</dt><dd>₹{{ "%.2f"|format(reservation.parking_slot.hourly_rate) }}</dd></div>
+      <div><dt>Hourly rate</dt><dd>₹{{ "%.2f"|format(quote.rate_cents / 100) }}</dd></div>
       <div class="summary-total"><dt>Fee due</dt><dd>₹{{ "%.2f"|format(quote.fee) }}</dd></div>
     </dl>
     <form method="POST">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="quote_token" value="{{ quote.quote_token }}">
       <div class="button-row">
         <button class="button" type="submit">Confirm Exit and Continue to Payment</button>
         <a class="button button-secondary" href="{{ url_for('main.my_reservations') }}">Cancel</a>

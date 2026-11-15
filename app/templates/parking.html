@@ -36,6 +36,7 @@
       <select id="availability" name="availability">
         <option value="">Any status</option>
         <option value="available"{% if filters.availability == 'available' %} selected{% endif %}>Available</option>
+        <option value="reserved"{% if filters.availability == 'reserved' %} selected{% endif %}>Reserved</option>
         <option value="occupied"{% if filters.availability == 'occupied' %} selected{% endif %}>Occupied</option>
       </select>
     </div>
@@ -44,13 +45,14 @@
       <a class="button button-secondary" href="{{ url_for('main.parking') }}">Clear</a>
     </div>
   </form>
+  {% include "_occupancy.html" %}
   <section class="slot-grid" aria-label="Parking slots">
     {% for slot in slots %}
       <article class="slot-card{% if slot.is_occupied %} slot-card-occupied{% endif %}">
         <div class="slot-card-top">
           <span class="slot-icon" aria-hidden="true">P</span>
-          <span class="status-badge status-{{ 'occupied' if slot.is_occupied else 'available' }}">
-            {{ 'Occupied' if slot.is_occupied else 'Available' }}
+          <span class="status-badge status-{{ states[slot.id] }}">
+            {{ states[slot.id]|title }}
           </span>
         </div>
         <h2>{{ slot.slot_number }}</h2>

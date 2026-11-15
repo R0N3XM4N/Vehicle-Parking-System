@@ -1,202 +1,119 @@
-from collections import defaultdict
-from datetime import datetime, timedelta, timezone
-from functools import wraps
-from math import ceil
+"""Browser views; all state changes delegate to shared application services."""
+
+from datetime import timedelta
 
 from flask import (
     Blueprint,
-    abort,
     flash,
     g,
+    jsonify,
     redirect,
     render_template,
     request,
     session,
     url_for,
 )
-from sqlalchemy import case, or_, update
-from sqlalchemy.exc import IntegrityError
 
 from app import db
-from app.models import ParkingSlot, Payment, Reservation, User, VehicleLog
-from app.validation import (
-    plain_text, valid_email, valid_vehicle_number, parse_rate, valid_slot,
+from app.auth import login_user, protected, register_user, revoke_current
+from app.errors import DomainError, wants_json
+from app.models import (
+    AuditEvent,
+    ParkingSlot,
+    Payment,
+    Reservation,
+    VehicleLog,
+    VehicleRate,
 )
-
+from app import services
+from app.timeutils import local_time, parse_time, utcnow
+from app.validation import parse_rate
 
 main = Blueprint("main", __name__)
-
-
-def login_required(view):
-    @wraps(view)
-    def wrapped(*args, **kwargs):
-        user_id = session.get("user_id")
-        user = db.session.get(User, user_id) if user_id else None
-        if user is None:
-            session.clear()
-            flash("Please log in first.", "error")
-            return redirect(url_for("main.login"))
-        g.current_user = user
-        session["user_role"] = user.role
-        return view(*args, **kwargs)
-
-    return wrapped
-
-
-def admin_required(view):
-    @wraps(view)
-    @login_required
-    def wrapped(*args, **kwargs):
-        if g.current_user.role != "admin":
-            abort(403)
-        return view(*args, **kwargs)
-
-    return wrapped
+login_required = protected()
+admin_required = protected(admin=True)
 
 
 def parse_local_datetime(value):
-    try:
-        return datetime.strptime(value, "%Y-%m-%dT%H:%M")
-    except (TypeError, ValueError):
-        return None
-
-
-def active_log_for(reservation):
-    return (
-        VehicleLog.query.filter_by(
-            reservation_id=reservation.id, exit_time=None
-        )
-        .order_by(VehicleLog.entry_time.desc())
-        .first()
-    )
+    return parse_time(value, browser=True)
 
 
 def fee_quote(reservation, exit_time=None):
-    log = active_log_for(reservation)
-    if log is None:
-        return None
-    exit_time = exit_time or datetime.now()
-    elapsed_seconds = max(0, (exit_time - log.entry_time).total_seconds())
-    hours = max(1, ceil(elapsed_seconds / 3600))
-    fee = round(hours * reservation.parking_slot.hourly_rate, 2)
-    return {"log": log, "exit_time": exit_time, "hours": hours, "fee": fee}
-
-
-def reservation_owned_by_current_user(reservation_id):
-    reservation = db.session.get(Reservation, reservation_id)
-    if reservation is None or reservation.user_id != session.get("user_id"):
-        return None
-    return reservation
+    return services.calculate_quote(reservation, exit_time)
 
 
 @main.route("/")
 def home():
-    if "user_id" in session:
+    if session.get("access_token"):
         return redirect(url_for("main.dashboard"))
-    total_slots = ParkingSlot.query.count()
-    available_slots = ParkingSlot.query.filter_by(is_occupied=False).count()
-    lowest_rate = db.session.query(db.func.min(ParkingSlot.hourly_rate)).scalar()
+    services.refresh_expiry()
+    states = services.slot_states()
     return render_template(
         "index.html",
-        total_slots=total_slots,
-        available_slots=available_slots,
-        lowest_rate=lowest_rate or 0,
+        total_slots=len(states),
+        available_slots=sum(state == "available" for state in states.values()),
+        lowest_rate=(
+            db.session.query(db.func.min(VehicleRate.cents_per_hour)).scalar() or 0
+        )
+        / 100,
     )
 
 
 @main.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-
-        if not plain_text(name, 100) or not email or not password:
-            flash("All fields are required.", "error")
-            return render_template("register.html")
-        if not valid_email(email):
-            flash("Enter a valid email address.", "error")
-            return render_template("register.html")
-        if not 8 <= len(password) <= 128:
-            flash("Password must be between 8 and 128 characters.", "error")
-            return render_template("register.html")
-        if User.query.filter_by(email=email).first():
-            flash("An account with that email already exists.", "error")
-            return render_template("register.html")
-
-        user = User(name=name, email=email)
-        user.set_password(password)
-        db.session.add(user)
         try:
-            db.session.commit()
-        except IntegrityError:
-            db.session.rollback()
-            flash("An account with that email already exists.", "error")
-            return render_template("register.html"), 409
+            register_user(
+                request.form.get("name", ""),
+                request.form.get("email", ""),
+                request.form.get("password", ""),
+            )
+        except DomainError as error:
+            flash(error.message, "error")
+            return render_template("register.html"), error.status
         flash("Registration successful. Please log in.", "success")
         return redirect(url_for("main.login"))
-
     return render_template("register.html")
 
 
 @main.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-        if not valid_email(email) or not 1 <= len(password) <= 128:
-            flash("Invalid email or password.", "error")
-            return render_template("login.html"), 401
-        user = User.query.filter_by(email=email).first()
-        # SQLite stores naive UTC for the lockout deadline.
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        if user and user.locked_until and user.locked_until > now:
-            flash("Account locked. Try again in 15 minutes.", "error")
-            return render_template("login.html"), 429
+        try:
+            user, token = login_user(
+                request.form.get("email", ""), request.form.get("password", "")
+            )
+        except DomainError as error:
+            flash(error.message, "error")
+            return render_template("login.html"), error.status
+        # Revoke the replaced session instead of leaving an orphan token.
+        old = session.get("access_token")
+        if old:
+            from app.auth import authenticate
 
-        if user and user.check_password(password):
-            # A concurrent failed attempt must not be able to bypass a lock.
-            result = db.session.execute(
-                update(User).where(
-                    User.id == user.id,
-                    or_(User.locked_until.is_(None), User.locked_until <= now),
-                ).values(failed_login_attempts=0, locked_until=None)
-            )
-            db.session.commit()
-            if result.rowcount != 1:
-                flash("Account locked. Try again in 15 minutes.", "error")
-                return render_template("login.html"), 429
-            session.clear()
-            session["user_id"] = user.id
-            session["user_name"] = user.name
-            session["user_role"] = user.role
-            return redirect(url_for("main.dashboard"))
-
-        if user:
-            # Increment in SQL, so simultaneous failures cannot lose updates.
-            attempts = case(
-                (User.locked_until <= now, 1),
-                else_=User.failed_login_attempts + 1,
-            )
-            db.session.execute(
-                update(User).where(
-                    User.id == user.id,
-                    or_(User.locked_until.is_(None), User.locked_until <= now),
-                ).values(
-                    failed_login_attempts=attempts,
-                    locked_until=case(
-                        (attempts >= 5, now + timedelta(minutes=15)), else_=None
-                    ),
-                )
-            )
-            db.session.commit()
-            db.session.refresh(user)
-            if user.locked_until and user.locked_until > now:
-                flash("Account locked. Try again in 15 minutes.", "error")
-                return render_template("login.html"), 429
-        flash("Invalid email or password.", "error")
-        return render_template("login.html"), 401
+            try:
+                authenticate(old)
+                revoke_current()
+            except DomainError:
+                pass
+        session.clear()
+        session.update(
+            access_token=token,
+            user_id=user.id,
+            user_name=user.name,
+            user_role=user.role,
+        )
+        return redirect(url_for("main.dashboard"))
     return render_template("login.html")
+
+
+@main.route("/logout", methods=["POST"])
+@login_required
+def logout():
+    revoke_current()
+    session.clear()
+    flash("You have been logged out.", "success")
+    return redirect(url_for("main.login"))
 
 
 @main.route("/dashboard")
@@ -204,67 +121,45 @@ def login():
 def dashboard():
     return render_template(
         "dashboard.html",
-        name=session["user_name"],
-        is_admin=session.get("user_role") == "admin",
+        name=g.current_user.name,
+        is_admin=g.current_user.role == "admin",
     )
-
-
-@main.route("/logout", methods=["POST"])
-def logout():
-    session.clear()
-    flash("You have been logged out.", "success")
-    return redirect(url_for("main.login"))
 
 
 @main.route("/parking")
 @login_required
 def parking():
-    search = request.args.get("search", "").strip()
-    zone = request.args.get("zone", "").strip()
-    vehicle_type = request.args.get("vehicle_type", "").strip()
-    availability = request.args.get("availability", "").strip()
-
+    filters = {
+        key: request.args.get(key, "").strip()
+        for key in ("search", "zone", "vehicle_type", "availability")
+    }
     if (
-        len(search) > 100 or len(zone) > 50
-        or vehicle_type not in {"", "two-wheeler", "four-wheeler"}
-        or availability not in {"", "available", "occupied"}
+        len(filters["search"]) > 100
+        or len(filters["zone"]) > 50
+        or filters["vehicle_type"] not in {"", "two-wheeler", "four-wheeler"}
+        or filters["availability"] not in {"", "available", "occupied", "reserved"}
     ):
-        abort(400)
-
+        raise DomainError(400, "invalid_filter", "Choose valid parking filters.")
+    states = services.slot_states()
     query = ParkingSlot.query
-    if search:
-        query = query.filter(ParkingSlot.slot_number.ilike(f"%{search}%"))
-    if zone:
-        query = query.filter_by(zone=zone)
-    if vehicle_type in {"two-wheeler", "four-wheeler"}:
-        query = query.filter_by(vehicle_type=vehicle_type)
-    if availability == "available":
-        query = query.filter_by(is_occupied=False)
-    elif availability == "occupied":
-        query = query.filter_by(is_occupied=True)
-
+    if filters["search"]:
+        query = query.filter(
+            ParkingSlot.slot_number.contains(filters["search"], autoescape=True)
+        )
+    for field in ("zone", "vehicle_type"):
+        if filters[field]:
+            query = query.filter(getattr(ParkingSlot, field) == filters[field])
     slots = query.order_by(ParkingSlot.zone, ParkingSlot.slot_number).all()
-    zones = [row[0] for row in db.session.query(ParkingSlot.zone).distinct()]
-
-    active_reservations = (
-        db.session.query(Reservation.slot_id, db.func.count(Reservation.id))
-        .filter(Reservation.status.in_(["reserved", "parked"]))
-        .group_by(Reservation.slot_id)
-        .all()
-    )
-    reservation_counts = dict(active_reservations)
-
+    if filters["availability"]:
+        slots = [slot for slot in slots if states[slot.id] == filters["availability"]]
     return render_template(
         "parking.html",
         slots=slots,
-        zones=sorted(zones),
-        filters={
-            "search": search,
-            "zone": zone,
-            "vehicle_type": vehicle_type,
-            "availability": availability,
-        },
-        reservation_counts=reservation_counts,
+        states=states,
+        filters=filters,
+        zones=sorted({slot.zone for slot in ParkingSlot.query.all()}),
+        zones_stats=services.occupancy(),
+        reservation_counts={},
     )
 
 
@@ -273,76 +168,36 @@ def parking():
 def reserve(slot_id):
     slot = db.session.get(ParkingSlot, slot_id)
     if slot is None:
-        flash("Parking slot not found.", "error")
-        return redirect(url_for("main.parking"))
-
-    default_start = datetime.now().replace(second=0, microsecond=0) + timedelta(
-        minutes=5
-    )
-    default_end = default_start + timedelta(hours=1)
-
+        raise DomainError(404, "not_found", "Parking slot not found.")
+    start = local_time(utcnow()).replace(second=0, microsecond=0)
+    end = start + timedelta(hours=1)
+    vehicle = request.form.get("vehicle_number", "").strip().upper()
+    status = 200
     if request.method == "POST":
-        vehicle_number = request.form.get("vehicle_number", "").strip().upper()
-        start_time = parse_local_datetime(request.form.get("start_time"))
-        scheduled_end_time = parse_local_datetime(request.form.get("end_time"))
-
-        if not valid_vehicle_number(vehicle_number):
-            flash("Enter a valid vehicle number.", "error")
-        elif start_time is None or scheduled_end_time is None:
-            flash("Choose a valid reservation start and end time.", "error")
-        elif start_time < datetime.now() - timedelta(minutes=1):
-            flash("Reservation start time cannot be in the past.", "error")
-        elif scheduled_end_time <= start_time:
-            flash("Reservation end time must be after the start time.", "error")
-        elif scheduled_end_time - start_time > timedelta(hours=24):
-            flash("A reservation window cannot exceed 24 hours.", "error")
-        else:
-            conflict = Reservation.query.filter(
-                Reservation.slot_id == slot.id,
-                Reservation.status.in_(["reserved", "parked", "awaiting_payment"]),
-                Reservation.start_time < scheduled_end_time,
-                or_(
-                    Reservation.scheduled_end_time.is_(None),
-                    Reservation.scheduled_end_time > start_time,
-                ),
-            ).first()
-
-            if conflict:
-                flash(
-                    "This slot is already reserved during that time window.",
-                    "error",
-                )
-            else:
-                reservation = Reservation(
-                    user_id=session["user_id"],
-                    slot_id=slot.id,
-                    vehicle_number=vehicle_number,
-                    start_time=start_time,
-                    scheduled_end_time=scheduled_end_time,
-                    status="reserved",
-                )
-                db.session.add(reservation)
-                db.session.commit()
-                flash(
-                    f"Slot {slot.slot_number} reserved successfully.",
-                    "success",
-                )
-                return redirect(url_for("main.my_reservations"))
-
-        return render_template(
+        try:
+            services.reserve_slot(
+                g.current_user.id,
+                slot_id,
+                vehicle,
+                parse_local_datetime(request.form.get("start_time")),
+                parse_local_datetime(request.form.get("end_time")),
+            )
+            flash(f"Slot {slot.slot_number} reserved successfully.", "success")
+            return redirect(url_for("main.my_reservations"))
+        except DomainError as error:
+            flash(error.message, "error")
+            status = error.status
+    return (
+        render_template(
             "reserve.html",
             slot=slot,
-            default_start=request.form.get("start_time", ""),
-            default_end=request.form.get("end_time", ""),
-            vehicle_number=vehicle_number,
-        )
-
-    return render_template(
-        "reserve.html",
-        slot=slot,
-        default_start=default_start.strftime("%Y-%m-%dT%H:%M"),
-        default_end=default_end.strftime("%Y-%m-%dT%H:%M"),
-        vehicle_number="",
+            vehicle_number=vehicle,
+            default_start=request.form.get(
+                "start_time", start.strftime("%Y-%m-%dT%H:%M")
+            ),
+            default_end=request.form.get("end_time", end.strftime("%Y-%m-%dT%H:%M")),
+        ),
+        status,
     )
 
 
@@ -350,43 +205,27 @@ def reserve(slot_id):
 @login_required
 def my_reservations():
     reservations = (
-        Reservation.query.filter_by(user_id=session["user_id"])
+        Reservation.query.filter_by(user_id=g.current_user.id)
         .order_by(Reservation.start_time.desc())
         .all()
     )
-    payment_by_reservation = {
-        payment.reservation_id: payment
-        for payment in Payment.query.join(Reservation).filter(
-            Reservation.user_id == session["user_id"]
+    payments = {
+        p.reservation_id: p
+        for p in Payment.query.join(Reservation).filter(
+            Reservation.user_id == g.current_user.id
         )
     }
     return render_template(
         "my_reservations.html",
         reservations=reservations,
-        payment_by_reservation=payment_by_reservation,
+        payment_by_reservation=payments,
     )
 
 
 @main.route("/reservation/<int:reservation_id>/entry", methods=["POST"])
 @login_required
 def vehicle_entry(reservation_id):
-    reservation = reservation_owned_by_current_user(reservation_id)
-    if reservation is None:
-        flash("Reservation not found.", "error")
-        return redirect(url_for("main.my_reservations"))
-    if reservation.status != "reserved":
-        flash("This reservation cannot be used for vehicle entry.", "error")
-        return redirect(url_for("main.my_reservations"))
-    if reservation.parking_slot.is_occupied:
-        flash("The selected slot is currently occupied.", "error")
-        return redirect(url_for("main.my_reservations"))
-
-    reservation.parking_slot.is_occupied = True
-    reservation.status = "parked"
-    db.session.add(
-        VehicleLog(reservation_id=reservation.id, entry_time=datetime.now())
-    )
-    db.session.commit()
+    services.enter_vehicle(g.current_user.id, reservation_id)
     flash("Vehicle entry recorded successfully.", "success")
     return redirect(url_for("main.my_reservations"))
 
@@ -394,174 +233,95 @@ def vehicle_entry(reservation_id):
 @main.route("/reservation/<int:reservation_id>/exit", methods=["POST"])
 @login_required
 def vehicle_exit(reservation_id):
-    reservation = reservation_owned_by_current_user(reservation_id)
-    if reservation is None or reservation.status != "parked":
-        flash("No active parking visit was found.", "error")
-        return redirect(url_for("main.my_reservations"))
-    return redirect(url_for("main.checkout", reservation_id=reservation.id))
+    services.owned_reservation(reservation_id, g.current_user.id)
+    return redirect(url_for("main.checkout", reservation_id=reservation_id))
 
 
-@main.route(
-    "/reservation/<int:reservation_id>/checkout", methods=["GET", "POST"]
-)
+@main.route("/reservation/<int:reservation_id>/checkout", methods=["GET", "POST"])
 @login_required
 def checkout(reservation_id):
-    reservation = reservation_owned_by_current_user(reservation_id)
-    if reservation is None:
-        abort(404)
-    if reservation.status != "parked":
-        flash("Only a parked vehicle can be checked out.", "error")
-        return redirect(url_for("main.my_reservations"))
-
-    quote = fee_quote(reservation)
-    if quote is None:
-        flash("No active vehicle entry record was found.", "error")
-        return redirect(url_for("main.my_reservations"))
-
+    user_id = g.current_user.id
     if request.method == "POST":
-        result = db.session.execute(
-            update(Reservation).where(
-                Reservation.id == reservation.id, Reservation.status == "parked"
-            ).values(status="awaiting_payment")
+        payment = services.confirm_exit(
+            user_id, reservation_id, request.form.get("quote_token")
         )
-        if result.rowcount != 1:
-            db.session.rollback()
-            abort(409)
-        quote["log"].exit_time = quote["exit_time"]
-        reservation.end_time = quote["exit_time"]
-        reservation.fee = quote["fee"]
-        reservation.status = "awaiting_payment"
-        reservation.parking_slot.is_occupied = False
-        payment_record = Payment(
-            reservation_id=reservation.id,
-            amount=quote["fee"],
-            status="pending",
-            created_at=datetime.now(),
-        )
-        db.session.add(payment_record)
-        db.session.commit()
-        flash("Exit confirmed. Complete the simulated payment.", "success")
-        return redirect(url_for("main.payment", payment_id=payment_record.id))
-
+        return redirect(url_for("main.payment", payment_id=payment.id))
+    reservation = services.owned_reservation(reservation_id, user_id)
+    quote = services.preview_exit(user_id, reservation_id)
     return render_template("checkout.html", reservation=reservation, quote=quote)
 
 
 @main.route("/payments/<int:payment_id>", methods=["GET", "POST"])
 @login_required
 def payment(payment_id):
-    payment_record = db.session.get(Payment, payment_id)
-    if (
-        payment_record is None
-        or payment_record.reservation.user_id != session["user_id"]
-    ):
-        abort(404)
-
-    if request.method == "POST" and payment_record.status != "paid":
-        if (payment_record.status != "pending"
-                or payment_record.reservation.status != "awaiting_payment"):
-            abort(409)
-        result = db.session.execute(
-            update(Payment).where(
-                Payment.id == payment_record.id, Payment.status == "pending"
-            ).values(status="paid", paid_at=datetime.now())
-        )
-        if result.rowcount != 1:
-            db.session.rollback()
-            return redirect(url_for("main.receipt", payment_id=payment_record.id))
-        payment_record.reservation.status = "completed"
-        db.session.commit()
-        flash("Payment recorded successfully.", "success")
-        return redirect(url_for("main.receipt", payment_id=payment_record.id))
-
-    if payment_record.status == "paid":
-        return redirect(url_for("main.receipt", payment_id=payment_record.id))
-    return render_template("payment.html", payment=payment_record)
+    record = db.session.get(Payment, payment_id)
+    if record is None or record.reservation.user_id != g.current_user.id:
+        raise DomainError(404, "not_found", "Payment not found.")
+    if request.method == "POST":
+        record = services.confirm_payment(g.current_user.id, payment_id)
+    if record.status == "paid":
+        return redirect(url_for("main.receipt", payment_id=payment_id))
+    return render_template("payment.html", payment=record)
 
 
 @main.route("/payments/<int:payment_id>/receipt")
 @login_required
 def receipt(payment_id):
-    payment_record = db.session.get(Payment, payment_id)
-    is_admin = g.current_user.role == "admin"
-    if payment_record is None or (
-        payment_record.reservation.user_id != session["user_id"] and not is_admin
+    record = db.session.get(Payment, payment_id)
+    if record is None or (
+        record.reservation.user_id != g.current_user.id
+        and g.current_user.role != "admin"
     ):
-        abort(404)
-    if payment_record.status != "paid":
-        return redirect(url_for("main.payment", payment_id=payment_record.id))
-    return render_template("receipt.html", payment=payment_record)
+        raise DomainError(404, "not_found", "Payment not found.")
+    if record.status != "paid":
+        return redirect(url_for("main.payment", payment_id=payment_id))
+    return render_template("receipt.html", payment=record)
 
 
 @main.route("/admin")
 @admin_required
 def admin_dashboard():
-    slots = ParkingSlot.query.order_by(
-        ParkingSlot.zone, ParkingSlot.slot_number
-    ).all()
-    stats = {
-        "total": len(slots),
-        "occupied": sum(slot.is_occupied for slot in slots),
-        "available": sum(not slot.is_occupied for slot in slots),
-        "rate_average": (
-            round(sum(slot.hourly_rate for slot in slots) / len(slots), 2)
-            if slots
-            else 0
-        ),
-    }
-    return render_template("admin.html", slots=slots, stats=stats)
+    slots = ParkingSlot.query.order_by(ParkingSlot.zone, ParkingSlot.slot_number).all()
+    states = services.slot_states()
+    stats = dict(
+        total=len(slots),
+        occupied=sum(s == "occupied" for s in states.values()),
+        available=sum(s == "available" for s in states.values()),
+        rate_average=sum(s.hourly_rate for s in slots) / len(slots) if slots else 0,
+    )
+    return render_template(
+        "admin.html",
+        slots=slots,
+        stats=stats,
+        rates=VehicleRate.query.all(),
+        zones_stats=services.occupancy(),
+    )
 
 
 @main.route("/admin/slots/add", methods=["POST"])
 @admin_required
 def admin_add_slot():
-    slot_number = request.form.get("slot_number", "").strip().upper()
-    zone = request.form.get("zone", "").strip()
-    vehicle_type = request.form.get("vehicle_type", "").strip()
-    hourly_rate = parse_rate(request.form.get("hourly_rate", ""))
-
-    if not valid_slot(slot_number, zone, vehicle_type, hourly_rate):
-        flash("Enter valid details for the new parking slot.", "error")
-    elif ParkingSlot.query.filter_by(slot_number=slot_number).first():
-        flash("A slot with that number already exists.", "error")
-    else:
-        db.session.add(
-            ParkingSlot(
-                slot_number=slot_number,
-                zone=zone,
-                vehicle_type=vehicle_type,
-                hourly_rate=hourly_rate,
-            )
-        )
-        db.session.commit()
-        flash(f"Slot {slot_number} added.", "success")
+    # Legacy form field remains accepted as a type-wide rate update.
+    rate = request.form.get("hourly_rate")
+    if rate is not None and parse_rate(rate) is None:
+        raise DomainError(400, "invalid_rate", "Enter a positive hourly rate.")
+    slot = services.save_slot(g.current_user.id, request.form)
+    if rate is not None:
+        services.set_rate(g.current_user.id, slot.vehicle_type, rate)
+    flash(f"Slot {slot.slot_number} added.", "success")
     return redirect(url_for("main.admin_dashboard"))
 
 
 @main.route("/admin/slots/<int:slot_id>/edit", methods=["POST"])
 @admin_required
 def admin_edit_slot(slot_id):
-    slot = db.session.get(ParkingSlot, slot_id)
-    if slot is None:
-        abort(404)
-    slot_number = request.form.get("slot_number", "").strip().upper()
-    zone = request.form.get("zone", "").strip()
-    vehicle_type = request.form.get("vehicle_type", "").strip()
-    hourly_rate = parse_rate(request.form.get("hourly_rate", ""))
-
-    duplicate = ParkingSlot.query.filter(
-        ParkingSlot.slot_number == slot_number, ParkingSlot.id != slot.id
-    ).first()
-    if not valid_slot(slot_number, zone, vehicle_type, hourly_rate):
-        flash("Enter valid slot details and a positive hourly rate.", "error")
-    elif duplicate:
-        flash("A slot with that number already exists.", "error")
-    else:
-        slot.slot_number = slot_number
-        slot.zone = zone
-        slot.vehicle_type = vehicle_type
-        slot.hourly_rate = hourly_rate
-        db.session.commit()
-        flash(f"Slot {slot_number} updated.", "success")
+    rate = request.form.get("hourly_rate")
+    if rate is not None and parse_rate(rate) is None:
+        raise DomainError(400, "invalid_rate", "Enter a positive hourly rate.")
+    slot = services.save_slot(g.current_user.id, request.form, slot_id)
+    if rate is not None:
+        services.set_rate(g.current_user.id, slot.vehicle_type, rate)
+    flash(f"Slot {slot.slot_number} updated.", "success")
     return redirect(url_for("main.admin_dashboard"))
 
 
@@ -570,76 +330,46 @@ def admin_edit_slot(slot_id):
 def admin_delete_slot(slot_id):
     slot = db.session.get(ParkingSlot, slot_id)
     if slot is None:
-        abort(404)
-    if slot.is_occupied or slot.reservations:
-        flash(
-            "Slots with occupancy or reservation history cannot be removed.",
-            "error",
-        )
-    else:
-        slot_number = slot.slot_number
-        db.session.delete(slot)
-        db.session.commit()
-        flash(f"Slot {slot_number} removed.", "success")
+        raise DomainError(404, "not_found", "Parking slot not found.")
+    number = slot.slot_number
+    services.delete_slot(g.current_user.id, slot_id)
+    flash(f"Slot {number} removed.", "success")
+    return redirect(url_for("main.admin_dashboard"))
+
+
+@main.route("/admin/rates/update", methods=["POST"])
+@admin_required
+def admin_update_rate():
+    services.set_rate(
+        g.current_user.id,
+        request.form.get("vehicle_type"),
+        request.form.get("hourly_rate"),
+    )
+    flash("Vehicle-type rate updated. Active visits keep their entry rate.", "success")
     return redirect(url_for("main.admin_dashboard"))
 
 
 @main.route("/admin/reports")
 @admin_required
 def reports():
-    period = request.args.get("period", "daily")
-    if period not in {"daily", "monthly"}:
-        period = "daily"
-    date_format = "%Y-%m" if period == "monthly" else "%Y-%m-%d"
+    data = services.report_data(request.args.get("period", "daily"))
+    return render_template("reports.html", **data)
 
-    occupancy = defaultdict(int)
-    for log in VehicleLog.query.all():
-        occupancy[log.entry_time.strftime(date_format)] += 1
 
-    revenue = defaultdict(float)
-    transactions = defaultdict(int)
-    paid_payments = Payment.query.filter_by(status="paid").all()
-    for payment_record in paid_payments:
-        timestamp = payment_record.paid_at or payment_record.created_at
-        key = timestamp.strftime(date_format)
-        revenue[key] += payment_record.amount
-        transactions[key] += 1
-
-    rows = [
-        {
-            "period": key,
-            "occupancy": occupancy[key],
-            "transactions": transactions[key],
-            "revenue": round(revenue[key], 2),
-        }
-        for key in sorted(set(occupancy) | set(revenue), reverse=True)
-    ]
-    totals = {
-        "occupancy": sum(occupancy.values()),
-        "transactions": len(paid_payments),
-        "revenue": round(sum(item.amount for item in paid_payments), 2),
-        "current_occupancy": ParkingSlot.query.filter_by(is_occupied=True).count(),
-    }
-    return render_template(
-        "reports.html", period=period, rows=rows, totals=totals
+@main.route("/admin/audit")
+@admin_required
+def audit_logs():
+    page = request.args.get("page", "1")
+    if not page.isdigit() or not 1 <= int(page) <= 100000:
+        raise DomainError(400, "invalid_page", "Choose a valid audit page.")
+    offset = (int(page) - 1) * 50
+    logs = (
+        VehicleLog.query.order_by(VehicleLog.entry_time.desc())
+        .offset(offset)
+        .limit(50)
+        .all()
     )
-
-
-@main.app_errorhandler(403)
-def forbidden(_error):
-    return render_template("error.html", code=403, message="Access denied"), 403
-
-
-@main.app_errorhandler(404)
-def not_found(_error):
-    return render_template("error.html", code=404, message="Page not found"), 404
-
-
-@main.app_errorhandler(400)
-def bad_request(_error):
-    return render_template("error.html", code=400, message="Invalid request"), 400
-
-
-@main.app_errorhandler(409)
-def conflict(_error):
-    return render_template("error.html", code=409, message="Conflicting state"), 409
+    events = (
+        AuditEvent.query.order_by(AuditEvent.id.desc()).offset(offset).limit(50).all()
+    )
+    return render_template("audit.html", logs=logs, events=events, page=int(page))

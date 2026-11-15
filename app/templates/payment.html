@@ -15,7 +15,7 @@
     </dl>
     <form method="POST">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="button form-submit" type="submit" onclick="return confirm('Record this simulated payment?')">Pay ₹{{ "%.2f"|format(payment.amount) }}</button>
+      <button class="button form-submit" type="submit" data-confirm="Record this simulated payment?">Pay ₹{{ "%.2f"|format(payment.amount) }}</button>
     </form>
   </section>
 {% endblock %}
