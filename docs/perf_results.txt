@@ -1,0 +1,6 @@
+logged in: 50/50
+concurrent users: 50
+requests: 2500  errors: 0  wall: 3.7s
+mean: 0.072s  median: 0.057s
+p90: 0.113s  max: 0.249s  (limit 2.0s)
+RESULT: PASS
