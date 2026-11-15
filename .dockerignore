@@ -1,0 +1,6 @@
+newenv
+.git
+__pycache__
+.pytest_cache
+test-results
+.coverage
