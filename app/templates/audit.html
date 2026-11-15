@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Entry and exit audit{% endblock %}
+{% block content %}
+<h1>Entry and exit audit</h1>
+<p>All times shown in Asia/Kolkata. Page {{ page }}.</p>
+<div class="data-table-wrapper"><table class="data-table">
+<thead><tr><th>Visit</th><th>Vehicle</th><th>Slot / zone</th><th>Entry</th><th>Exit</th></tr></thead>
+<tbody>{% for log in logs %}<tr>
+<td>{{ log.id }}</td><td>{{ log.reservation.vehicle_number }}</td>
+<td>{{ log.reservation.parking_slot.slot_number }} / {{ log.reservation.parking_slot.zone }}</td>
+<td>{{ (log.entry_time|localtime).strftime('%d %b %Y, %H:%M') }}</td>
+<td>{{ (log.exit_time|localtime).strftime('%d %b %Y, %H:%M') if log.exit_time else 'Still parked' }}</td>
+</tr>{% else %}<tr><td colspan="5">No visits on this page.</td></tr>{% endfor %}</tbody></table></div>
+<h2>Application audit events</h2>
+<div class="data-table-wrapper"><table class="data-table">
+<thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Resource</th></tr></thead>
+<tbody>{% for event in events %}<tr><td>{{ (event.created_at|localtime).strftime('%d %b %Y, %H:%M') }}</td><td>{{ event.actor_id or 'System' }}</td><td>{{ event.action }}</td><td>{{ event.resource_id or '—' }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<nav class="button-row">{% if page > 1 %}<a class="button" href="?page={{ page-1 }}">Previous</a>{% endif %}{% if logs|length == 50 or events|length == 50 %}<a class="button" href="?page={{ page+1 }}">Next</a>{% endif %}</nav>
+{% endblock %}

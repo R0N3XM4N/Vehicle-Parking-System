@@ -8,3 +8,6 @@ instance/
 *.sqlite
 *.sqlite3
 .env
+.coverage
+coverage.xml
+test-results/

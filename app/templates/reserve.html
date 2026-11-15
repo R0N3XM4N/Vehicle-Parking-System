@@ -12,6 +12,7 @@
       <strong>₹{{ "%.2f"|format(slot.hourly_rate) }}</strong>
     </div>
     <form class="stacked-form" id="reservation-form" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label for="vehicle_number">Vehicle registration number</label>
         <input id="vehicle_number" type="text" name="vehicle_number" maxlength="20" value="{{ vehicle_number }}"
@@ -29,7 +30,7 @@
         </div>
       </div>
       <small>Choose a future window of up to 24 hours. Overlapping reservations are blocked.</small>
-      <button class="button form-submit" type="submit" onclick="return confirm('Confirm this parking reservation and time window?')">Review and Confirm Reservation</button>
+      <button class="button form-submit" type="submit" data-confirm="Confirm this parking reservation and time window?">Review and Confirm Reservation</button>
     </form>
   </section>
 {% endblock %}

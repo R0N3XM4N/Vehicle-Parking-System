@@ -13,13 +13,25 @@
     <article class="metric-card"><span>Occupied now</span><strong>{{ stats.occupied }}</strong></article>
     <article class="metric-card"><span>Average rate</span><strong>₹{{ "%.2f"|format(stats.rate_average) }}</strong></article>
   </section>
+  {% include "_occupancy.html" %}
+  <section class="admin-panel">
+    <h2>Hourly rates by vehicle type</h2>
+    <p>All slots of a type share a rate. Active visits retain the rate recorded at entry.</p>
+    {% for rate in rates %}<form method="POST" action="{{ url_for('main.admin_update_rate') }}" class="admin-add-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="vehicle_type" value="{{ rate.vehicle_type }}">
+      <div class="form-group"><label for="rate-{{ rate.vehicle_type }}">{{ rate.vehicle_type }}</label><input id="rate-{{ rate.vehicle_type }}" name="hourly_rate" type="number" min="0.01" max="1000000" step="0.01" value="{{ '%.2f'|format(rate.cents_per_hour/100) }}" required></div>
+      <button class="button" type="submit">Update type rate</button>
+    </form>{% endfor %}
+  </section>
   <section class="admin-panel">
     <h2>Add a parking slot</h2>
     <form class="admin-add-form" method="POST" action="{{ url_for('main.admin_add_slot') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group"><label for="new-number">Slot number</label><input id="new-number" name="slot_number" required></div>
       <div class="form-group"><label for="new-zone">Zone</label><input id="new-zone" name="zone" required></div>
       <div class="form-group"><label for="new-type">Vehicle type</label><select id="new-type" name="vehicle_type" required><option value="four-wheeler">Four-wheeler</option><option value="two-wheeler">Two-wheeler</option></select></div>
-      <div class="form-group"><label for="new-rate">Hourly rate (₹)</label><input id="new-rate" name="hourly_rate" type="number" min="1" step="0.01" required></div>
+
       <button class="button" type="submit">Add Slot</button>
     </form>
   </section>
@@ -33,12 +45,13 @@
             <tr>
               <td colspan="6">
                 <form class="slot-edit-form" method="POST" action="{{ url_for('main.admin_edit_slot', slot_id=slot.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <input aria-label="Slot number" name="slot_number" value="{{ slot.slot_number }}" required>
                   <input aria-label="Zone" name="zone" value="{{ slot.zone }}" required>
                   <select aria-label="Vehicle type" name="vehicle_type"><option value="four-wheeler"{% if slot.vehicle_type == 'four-wheeler' %} selected{% endif %}>Four-wheeler</option><option value="two-wheeler"{% if slot.vehicle_type == 'two-wheeler' %} selected{% endif %}>Two-wheeler</option></select>
-                  <input aria-label="Hourly rate" name="hourly_rate" type="number" min="1" step="0.01" value="{{ '%.2f'|format(slot.hourly_rate) }}" required>
+                  <span>₹{{ '%.2f'|format(slot.hourly_rate) }} / hour</span>
                   <span class="status-badge status-{{ 'occupied' if slot.is_occupied else 'available' }}">{{ 'Occupied' if slot.is_occupied else 'Available' }}</span>
-                  <span class="table-actions"><button class="button button-small" type="submit">Save</button><button class="button button-small button-danger" type="submit" formaction="{{ url_for('main.admin_delete_slot', slot_id=slot.id) }}" onclick="return confirm('Remove this unused slot?')">Remove</button></span>
+                  <span class="table-actions"><button class="button button-small" type="submit">Save</button><button class="button button-small button-danger" type="submit" formaction="{{ url_for('main.admin_delete_slot', slot_id=slot.id) }}" data-confirm="Remove this unused slot?">Remove</button></span>
                 </form>
               </td>
             </tr>

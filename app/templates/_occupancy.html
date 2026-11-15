@@ -1,0 +1,8 @@
+<section aria-label="Occupancy by zone" data-occupancy>
+  <h2>Occupancy by zone</h2>
+  <p>Refreshes every 15 seconds while this page is visible.</p>
+  <div class="data-table-wrapper"><table class="data-table">
+    <thead><tr><th>Zone</th><th>Total</th><th>Available</th><th>Reserved</th><th>Occupied</th></tr></thead>
+    <tbody>{% for row in zones_stats %}<tr><td>{{ row.zone }}</td><td>{{ row.total }}</td><td>{{ row.available }}</td><td>{{ row.reserved }}</td><td>{{ row.occupied }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
