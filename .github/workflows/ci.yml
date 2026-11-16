@@ -86,3 +86,39 @@ jobs:
           name: browser-story-evidence
           path: test-results/browser/
           if-no-files-found: error
+
+  deploy:
+    name: Build and smoke-test deployment image
+    needs: [verify, browser-stories]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: vehicle-parking-system:${{ github.sha }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build --tag "$IMAGE_NAME" .
+
+      - name: Start deployment container
+        run: |
+          docker run --detach --rm --name vehicle-parking-system \
+            --publish 5000:5000 \
+            "$IMAGE_NAME"
+
+      - name: Verify deployment responds
+        run: |
+          for attempt in {1..20}; do
+            if curl --fail --silent --show-error http://127.0.0.1:5000/login; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "The deployment container did not become ready."
+          docker logs vehicle-parking-system
+          exit 1
+
+      - name: Stop deployment container
+        if: always()
+        run: docker stop vehicle-parking-system || true
